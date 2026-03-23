@@ -20,7 +20,7 @@
 
 ### 二、开发框架
 
-主流 Agent 开发框架对比与选型指南。
+主流 Agent 开发框架对比与选型指南，帮助你从语言生态、RAG 能力、Agent 编排能力和企业落地约束四个维度做选型判断。
 
 - [框架对比与选型](./frameworks/README.md)
 - LangChain vs LlamaIndex 深度对比
@@ -28,7 +28,7 @@
 
 ### 三、Java 实现示例
 
-各种 Agent 范式的 Java 伪代码实现，面试参考用。
+各种 Agent 范式的 Java 伪代码实现，适合在面试准备阶段快速理解接口设计、职责划分和异常处理思路。
 
 - [ReActAgent](./java-examples/ReActAgent.java) - ReAct 范式实现
 - [PlanAndSolveAgent](./java-examples/PlanAndSolveAgent.java) - 计划执行范式
@@ -36,6 +36,19 @@
 - [ReflexionAgent](./java-examples/ReflexionAgent.java) - 自我反思学习
 
 **[Java 示例说明 →](./java-examples/README.md)**
+
+### 四、RAG 检索技术
+
+面向知识库问答、企业搜索和 Agent 记忆增强场景的检索专题，覆盖经典稀疏检索、混合检索、查询增强和分层索引设计。
+
+| 主题 | 重点能力 | 文档 |
+|------|----------|------|
+| **BM25** | 关键词相关性建模 | [查看](./retrieval/bm25.md) |
+| **Hybrid Retrieval** | 稀疏+稠密结果融合 | [查看](./retrieval/hybrid-retrieval.md) |
+| **HyDE** | 查询增强与召回优化 | [查看](./retrieval/hyde.md) |
+| **Parent-Child Index** | 检索粒度与上下文保真 | [查看](./retrieval/parent-child-index.md) |
+
+**[RAG 检索专题总览 →](./retrieval/README.md)**
 
 ## 🎯 面试题特点
 
@@ -46,16 +59,17 @@
 3. **对比分析** - 多个方案对比，知道何时用哪个
 4. **延伸追问** - 模拟面试官的连环追问
 5. **实战导向** - 结合真实工程场景
+6. **检索专题补充** - 覆盖 Agent 常见的 RAG 检索与召回优化问题
 
 ## 📖 推荐阅读顺序
 
 ```
 新手路线：
-ReAct → CoT/ToT → Plan-and-Solve → Multi-Agent → Reflexion
+ReAct → CoT/ToT → Plan-and-Solve → Multi-Agent → Reflexion → Retrieval
 
 面试冲刺：
-根据 JD 要求重点看对应范式
-一般重点：ReAct、Multi-Agent
+根据 JD 要求重点看对应范式和检索方案
+一般重点：ReAct、Multi-Agent、Hybrid Retrieval
 ```
 
 ## 🤝 贡献
@@ -70,6 +84,7 @@ ReAct → CoT/ToT → Plan-and-Solve → Multi-Agent → Reflexion
 
 ## 📝 更新日志
 
+- **2026-03-23** - 补充 RAG 检索技术导航，完善主 README 描述与阅读路径
 - **2024-03-23** - 初始版本，包含 5 大范式详解、框架对比、Java 示例
 
 ---
