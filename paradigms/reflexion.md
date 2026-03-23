@@ -8,27 +8,24 @@
 
 ### 1.2 核心组件
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      Reflexion Agent                        │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│   ┌─────────┐    ┌───────────┐    ┌─────────────┐          │
-│   │  Actor  │───→│ Evaluator │───→│  Reflector  │          │
-│   │ 执行者  │    │  评估者   │    │  反思生成   │          │
-│   └────┬────┘    └───────────┘    └──────┬──────┘          │
-│        │                                  │                 │
-│        │         ┌───────────┐          │                 │
-│        └────────→│  Memory   │←─────────┘                 │
-│                  │  记忆存储  │                            │
-│                  └───────────┘                            │
-│                          │                                │
-│                          ▼                                │
-│                   ┌─────────────┐                         │
-│                   │  Next Trial │  (带着经验重试)          │
-│                   └─────────────┘                         │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph ReflexionAgent["Reflexion Agent"]
+        Actor["🎭 Actor<br/>执行者"]
+        Evaluator["✅ Evaluator<br/>评估者"]
+        Reflector["💭 Reflector<br/>反思生成"]
+        Memory["🧠 Memory<br/>记忆存储"]
+    end
+    
+    Actor --> Evaluator
+    Evaluator --> Reflector
+    Reflector --> Memory
+    Memory --> Actor
+    
+    style Actor fill:#e1f5fe
+    style Evaluator fill:#e8f5e9
+    style Reflector fill:#fff3e0
+    style Memory fill:#f3e5f5
 ```
 
 ### 1.3 与传统强化学习的区别
@@ -56,40 +53,30 @@
 
 **记忆分层架构：**
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      Memory System                          │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │                 Working Memory                      │   │
-│  │  工作记忆（当前任务上下文）                          │   │
-│  │  - 最近几次的尝试                                    │   │
-│  │  - 当前反思                                          │   │
-│  │  - 临时变量                                          │   │
-│  │  生命周期：单次任务                                   │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                          │                                  │
-│                          ▼                                  │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │                 Short-term Memory                   │   │
-│  │  短期记忆（会话级）                                  │   │
-│  │  - 本次会话的所有反思                                │   │
-│  │  - 用户偏好学习                                      │   │
-│  │  生命周期：会话结束                                   │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                          │                                  │
-│                          ▼                                  │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │                 Long-term Memory                    │   │
-│  │  长期记忆（持久化）                                  │   │
-│  │  - 跨任务的通用经验                                  │   │
-│  │  - 按任务类型分类                                    │   │
-│  │  - 向量检索                                          │   │
-│  │  存储：向量数据库                                     │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph MemorySystem["Memory System 记忆系统"]
+        direction TB
+        
+        subgraph WM["📝 Working Memory 工作记忆"]
+            wm_desc["- 最近几次尝试<br/>- 当前反思<br/>- 临时变量<br/>生命周期：单次任务"]
+        end
+        
+        subgraph STM["📋 Short-term Memory 短期记忆"]
+            stm_desc["- 本次会话反思<br/>- 用户偏好学习<br/>生命周期：会话结束"]
+        end
+        
+        subgraph LTM["🗄️ Long-term Memory 长期记忆"]
+            ltm_desc["- 跨任务通用经验<br/>- 按类型分类<br/>- 向量检索<br/>存储：向量数据库"]
+        end
+        
+        WM --> STM
+        STM --> LTM
+    end
+    
+    style WM fill:#e3f2fd
+    style STM fill:#e8f5e9
+    style LTM fill:#fff3e0
 ```
 
 **具体实现：**
@@ -243,4 +230,494 @@ public class ReflexionAgent {
             task = adjustTask(task, reflection);
         }
         
-        return "达到最大尝试
+        return "达到最大尝试次数，最佳结果：" + convergenceDetector.getBestResult();
+    }
+    
+    /**
+     * 计算策略的哈希值，用于检测重复
+     */
+    private String hashStrategy(String strategy) {
+        return DigestUtils.sha256Hex(strategy);
+    }
+}
+
+/**
+ * 收敛检测器 - 检测是否陷入停滞
+ */
+class ConvergenceDetector {
+    private List<String> results = new ArrayList<>();
+    private String bestResult;
+    private double bestScore = Double.MIN_VALUE;
+    
+    public boolean isConverged(String result) {
+        results.add(result);
+        
+        // 如果结果数量不足，不判断收敛
+        if (results.size() < 3) return false;
+        
+        // 检查最近3次结果是否相似
+        int n = results.size();
+        String last1 = results.get(n - 1);
+        String last2 = results.get(n - 2);
+        String last3 = results.get(n - 3);
+        
+        // 使用编辑距离或语义相似度判断
+        double sim12 = calculateSimilarity(last1, last2);
+        double sim23 = calculateSimilarity(last2, last3);
+        
+        // 如果连续结果高度相似，认为已收敛
+        if (sim12 > 0.9 && sim23 > 0.9) {
+            return true;
+        }
+        
+        // 检查分数是否不再提升
+        double currentScore = evaluateResult(result);
+        if (currentScore <= bestScore * 1.01) { // 允许1%的浮动
+            return true;
+        }
+        
+        if (currentScore > bestScore) {
+            bestScore = currentScore;
+            bestResult = result;
+        }
+        
+        return false;
+    }
+    
+    private double calculateSimilarity(String s1, String s2) {
+        // 可以使用编辑距离、余弦相似度或语义相似度
+        // 简化实现：Jaccard相似度
+        Set<String> set1 = new HashSet<>(Arrays.asList(s1.split("\\s+")));
+        Set<String> set2 = new HashSet<>(Arrays.asList(s2.split("\\s+")));
+        
+        Set<String> intersection = new HashSet<>(set1);
+        intersection.retainAll(set2);
+        
+        Set<String> union = new HashSet<>(set1);
+        union.addAll(set2);
+        
+        return (double) intersection.size() / union.size();
+    }
+    
+    public String getBestResult() {
+        return bestResult;
+    }
+}
+```
+
+**防循环策略总结：**
+
+```mermaid
+flowchart TD
+    A[开始执行任务] --> B{尝试次数 < MAX?}
+    B -->|否| C[返回最佳结果]
+    B -->|是| D[执行并评估]
+    D --> E{成功?}
+    E -->|是| F[返回结果]
+    E -->|否| G[检查收敛性]
+    G --> H{已收敛?}
+    H -->|是| C
+    H -->|否| I[生成反思]
+    I --> J[检查策略重复]
+    J --> K{策略重复?}
+    K -->|是| L[生成替代策略]
+    K -->|否| M[记录策略]
+    L --> M
+    M --> B
+```
+
+| 机制 | 作用 | 实现方式 |
+|------|------|----------|
+| **最大尝试次数** | 硬性止损 | `MAX_ATTEMPTS = 5` |
+| **收敛检测** | 检测停滞 | 结果相似度 + 分数停滞 |
+| **策略去重** | 避免重复尝试 | HashSet 存储策略指纹 |
+| **替代策略生成** | 突破僵局 | 当策略重复时强制换方向 |
+
+---
+
+### 题目 3：Reflexion 的反思生成策略有哪些？如何设计高质量的反思 Prompt？
+
+#### 考察点
+- Prompt Engineering 能力
+- 反思质量优化
+- 工程实践经验
+
+#### 详细解答
+
+**反思生成策略对比：**
+
+```mermaid
+mindmap
+  root((反思生成策略))
+    基于错误分析
+      定位错误位置
+      分析错误原因
+      提出修正方案
+    基于对比学习
+      对比成功/失败案例
+      提取关键差异
+      总结成功模式
+    基于专家知识
+      引入领域规则
+      约束生成空间
+      提升反思质量
+    基于多视角
+      自我反思
+      模拟他人视角
+      综合多维度意见
+```
+
+**高质量反思 Prompt 设计：**
+
+```java
+public class ReflectionPromptBuilder {
+    
+    /**
+     * 构建结构化反思 Prompt
+     */
+    public static String buildPrompt(Task task, Result result, Evaluation eval) {
+        StringBuilder prompt = new StringBuilder();
+        
+        // 1. 角色设定
+        prompt.append("你是一位经验丰富的AI助手，擅长从失败中学习并改进。\n\n");
+        
+        // 2. 任务背景
+        prompt.append("【任务】\n").append(task.getDescription()).append("\n\n");
+        
+        // 3. 执行过程
+        prompt.append("【你的尝试】\n").append(result.getOutput()).append("\n\n");
+        
+        // 4. 评估反馈
+        prompt.append("【评估结果】\n")
+              .append("- 成功: ").append(eval.isSuccess() ? "否" : "是").append("\n")
+              .append("- 得分: ").append(eval.getScore()).append("/10\n")
+              .append("- 问题: ").append(eval.getFeedback()).append("\n\n");
+        
+        // 5. 历史反思（如果有）
+        if (!task.getPreviousReflections().isEmpty()) {
+            prompt.append("【之前的反思】\n");
+            for (Reflection r : task.getPreviousReflections()) {
+                prompt.append("- ").append(r.getContent()).append("\n");
+            }
+            prompt.append("\n");
+        }
+        
+        // 6. 输出要求
+        prompt.append("【请生成反思】\n")
+              .append("请分析失败原因，并给出具体的改进策略。按以下格式输出：\n\n")
+              .append("1. 错误定位：具体指出哪里出了问题\n")
+              .append("2. 根因分析：为什么会出现这个错误\n")
+              .append("3. 改进策略：下次如何做得更好（具体可操作）\n")
+              .append("4. 验证方法：如何验证改进是否有效\n");
+        
+        return prompt.toString();
+    }
+    
+    /**
+     *  few-shot 示例增强
+     */
+    public static String buildWithExamples(Task task, Result result, Evaluation eval) {
+        String basePrompt = buildPrompt(task, result, eval);
+        
+        String examples = """
+\n【反思示例】\n
+示例1（数学计算错误）：
+错误定位：在计算 23 × 47 时，将 23 × 40 算成了 820 而非 920\n
+根因分析：乘法进位时疏忽，十位数的计算没有正确处理\n
+改进策略：\n- 使用竖式计算，每步写下中间结果\n- 计算完成后用逆运算验证（1081 ÷ 23 应该等于 47）\n
+验证方法：重新计算并用计算器核对\n
+---\n
+示例2（逻辑推理错误）：\n错误定位：假设了所有天鹅都是白色的，忽略了黑天鹅的存在\n
+根因分析：归纳推理时样本不够全面，存在幸存者偏差\n
+改进策略：\n- 寻找反例来验证假设\n- 使用"除非有反例"等限定词\n- 明确说明结论的适用范围\n
+验证方法：检查是否有已知的反例或边界情况\n""";
+        
+        return basePrompt + examples;
+    }
+}
+```
+
+**反思质量评估：**
+
+```java
+public class ReflectionQualityChecker {
+    
+    public QualityScore evaluate(Reflection reflection) {
+        int specificity = checkSpecificity(reflection);
+        int actionability = checkActionability(reflection);
+        int novelty = checkNovelty(reflection, previousReflections);
+        int relevance = checkRelevance(reflection, task);
+        
+        return new QualityScore(specificity, actionability, novelty, relevance);
+    }
+    
+    /**
+     * 检查具体性：反思是否具体到可执行
+     */
+    private int checkSpecificity(Reflection r) {
+        // 避免"我需要更仔细"这类空泛反思
+        // 偏好"我需要在计算乘法时先估算范围"
+        String content = r.getContent();
+        
+        // 检查是否包含具体动作
+        boolean hasAction = content.contains("应该") || 
+                           content.contains("需要") ||
+                           content.contains("下次");
+        
+        // 检查是否过于笼统
+        boolean isVague = content.contains("更仔细") ||
+                         content.contains("更认真") ||
+                         content.length() < 20;
+        
+        if (hasAction && !isVague) return 10;
+        if (hasAction) return 7;
+        if (!isVague) return 5;
+        return 3;
+    }
+    
+    /**
+     * 检查可操作性：改进策略是否可执行
+     */
+    private int checkActionability(Reflection r) {
+        String strategy = r.getStrategy();
+        
+        // 可操作的策略应该包含具体的步骤或方法
+        return strategy.split("\\n").length >= 2 ? 10 : 5;
+    }
+}
+```
+
+**反思 Prompt 模板库：**
+
+| 场景 | Prompt 关键要素 |
+|------|-----------------|
+| **代码生成** | 强调语法检查、边界条件、测试用例 |
+| **数学推理** | 强调步骤验证、逆运算检查、估算范围 |
+| **逻辑推理** | 强调前提假设、反例寻找、归纳完整性 |
+| **文本生成** | 强调风格一致性、事实准确性、结构完整性 |
+
+---
+
+### 题目 4：Reflexion 与其他 Agent 范式（如 ReAct、CoT）如何结合？
+
+#### 考察点
+- 范式组合能力
+- 架构设计能力
+- 复杂系统经验
+
+#### 详细解答
+
+**Reflexion + ReAct 组合架构：**
+
+```mermaid
+flowchart TB
+    subgraph ReflexionLayer["Reflexion 层 - 元认知"]
+        R1[观察执行结果]
+        R2[生成反思]
+        R3[更新策略]
+    end
+    
+    subgraph ReActLayer["ReAct 层 - 执行"]
+        A1[Thought]
+        A2[Action]
+        A3[Observation]
+    end
+    
+    A1 --> A2
+    A2 --> A3
+    A3 --> R1
+    R1 --> R2
+    R2 --> R3
+    R3 --> A1
+```
+
+**具体实现：**
+
+```java
+public class ReflexionReActAgent {
+    
+    private ReActExecutor executor;
+    private ReflexionMemory memory;
+    private int maxReflectionRounds = 3;
+    
+    public String solve(String task) {
+        // 获取相关历史反思
+        List<Reflection> relevant = memory.getRelevantReflections(task);
+        
+        for (int round = 0; round < maxReflectionRounds; round++) {
+            
+            // 构建增强的 ReAct Prompt，注入反思经验
+            String enhancedPrompt = buildEnhancedPrompt(task, relevant);
+            
+            // 使用 ReAct 执行
+            ReActResult result = executor.execute(enhancedPrompt);
+            
+            // 评估结果
+            Evaluation eval = evaluate(result);
+            
+            if (eval.isSuccess()) {
+                return result.getFinalAnswer();
+            }
+            
+            // 生成反思
+            Reflection reflection = generateReflection(task, result, eval);
+            
+            // 保存反思
+            memory.addReflection(reflection);
+            
+            // 更新相关反思列表
+            relevant = memory.getRelevantReflections(task);
+        }
+        
+        return "达到最大反思轮次，未能成功完成";
+    }
+    
+    /**
+     * 构建注入反思经验的增强 Prompt
+     */
+    private String buildEnhancedPrompt(String task, List<Reflection> reflections) {
+        StringBuilder prompt = new StringBuilder();
+        
+        prompt.append("任务：").append(task).append("\n\n");
+        
+        if (!reflections.isEmpty()) {
+            prompt.append("【历史经验】\n");
+            prompt.append("根据之前的尝试，请注意以下经验教训：\n");
+            for (int i = 0; i < Math.min(reflections.size(), 3); i++) {
+                Reflection r = reflections.get(i);
+                prompt.append(i + 1).append(". ").append(r.getContent()).append("\n");
+            }
+            prompt.append("\n");
+        }
+        
+        prompt.append("请按照 ReAct 模式（Thought → Action → Observation）逐步解决。\n");
+        
+        return prompt.toString();
+    }
+}
+```
+
+**Reflexion + CoT 组合：**
+
+```mermaid
+flowchart LR
+    subgraph Input["输入"]
+        T[问题]
+    end
+    
+    subgraph CoTLayer["CoT 层 - 推理"]
+        C1[分解问题]
+        C2[逐步推理]
+        C3[生成答案]
+    end
+    
+    subgraph ReflexionCheck["Reflexion 层 - 验证"]
+        R1[验证每步推理]
+        R2[发现错误步骤]
+        R3[生成修正建议]
+    end
+    
+    subgraph Output["输出"]
+        O[最终答案]
+    end
+    
+    T --> C1
+    C1 --> C2
+    C2 --> C3
+    C3 --> R1
+    R1 -->|正确| O
+    R1 -->|错误| R2
+    R2 --> R3
+    R3 --> C1
+```
+
+```java
+public class ReflexionCoTAgent {
+    
+    /**
+     * CoT 生成 + Reflexion 验证迭代
+     */
+    public String solveWithVerification(String problem) {
+        int maxIterations = 3;
+        
+        for (int i = 0; i < maxIterations; i++) {
+            // 1. CoT 生成推理链
+            ChainOfThought cot = generateCoT(problem);
+            
+            // 2. Reflexion 验证每一步
+            List<StepVerification> verifications = new ArrayList<>();
+            boolean allCorrect = true;
+            
+            for (Step step : cot.getSteps()) {
+                StepVerification v = verifyStep(step, problem);
+                verifications.add(v);
+                
+                if (!v.isCorrect()) {
+                    allCorrect = false;
+                    // 生成针对该步骤的反思
+                    Reflection stepReflection = generateStepReflection(step, v);
+                    
+                    // 修正问题描述，加入反思
+                    problem = problem + "\n注意：在以下步骤中，" + stepReflection.getContent();
+                    break; // 发现错误就停止，重新生成
+                }
+            }
+            
+            if (allCorrect) {
+                return cot.getFinalAnswer();
+            }
+        }
+        
+        return "无法生成正确推理链";
+    }
+    
+    private StepVerification verifyStep(Step step, String problem) {
+        // 使用 LLM 或规则验证步骤正确性
+        String verificationPrompt = String.format("""
+验证以下推理步骤是否正确：
+
+问题：%s
+
+推理步骤：%s
+
+请判断：
+1. 该步骤逻辑是否正确？
+2. 计算是否正确（如果是数学问题）？
+3. 是否朝着解决问题的方向前进？
+
+输出格式：
+正确性: true/false
+问题: 如果有问题，请说明
+""", problem, step.getContent());
+        
+        String response = llm.complete(verificationPrompt);
+        return parseVerification(response);
+    }
+}
+```
+
+**三种组合模式对比：**
+
+| 组合模式 | 适用场景 | Reflexion 作用 | 其他范式作用 |
+|----------|----------|----------------|--------------|
+| **Reflexion + ReAct** | 工具调用任务 | 总结工具使用经验 | 执行具体工具调用 |
+| **Reflexion + CoT** | 推理任务 | 验证推理步骤 | 生成推理链 |
+| **Reflexion + ToT** | 搜索决策任务 | 评估节点质量 | 探索多路径 |
+
+---
+
+## 三、延伸追问
+
+1. **"Reflexion 的记忆存储有什么最佳实践？如何防止记忆膨胀？"**
+   - 定期压缩和总结反思
+   - 使用向量检索只获取最相关的
+   - 设置记忆过期机制
+
+2. **"Reflexion 的评估函数（Evaluator）如何设计？"**
+   - 任务特定的评估指标
+   - 多维度综合评分
+   - 人工反馈对齐
+
+3. **"Reflexion 适合什么类型的任务？不适合什么？"**
+   - 适合：有明确成功标准的任务、可重复尝试的任务
+   - 不适合：一次性任务、实时性要求高的任务、成本敏感的任务
