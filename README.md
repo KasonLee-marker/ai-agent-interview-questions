@@ -50,6 +50,14 @@
 
 **[RAG 检索专题总览 →](./retrieval/README.md)**
 
+### 五、Agent 记忆系统
+
+Agent 记忆机制设计，包括短期/长期记忆分层、记忆提取与更新策略、记忆检索与使用。
+
+| 主题 | 重点能力 | 文档 |
+|------|----------|------|
+| **记忆系统** | STM/LTM 设计、更新策略、检索使用 | [查看](./agent/memory-system.md) |
+
 ## 🎯 面试题特点
 
 本仓库的面试题具有以下特点：
@@ -65,11 +73,11 @@
 
 ```
 新手路线：
-ReAct → CoT/ToT → Plan-and-Solve → Multi-Agent → Reflexion → Retrieval
+ReAct → CoT/ToT → Plan-and-Solve → Multi-Agent → Reflexion → Retrieval → Memory
 
 面试冲刺：
 根据 JD 要求重点看对应范式和检索方案
-一般重点：ReAct、Multi-Agent、Hybrid Retrieval
+一般重点：ReAct、Multi-Agent、Hybrid Retrieval、Memory System
 ```
 
 ## 🤝 贡献
@@ -84,6 +92,8 @@ ReAct → CoT/ToT → Plan-and-Solve → Multi-Agent → Reflexion → Retrieval
 
 ## 📝 更新日志
 
+- **2026-03-24** - 新增记忆系统文档（短期/长期记忆、更新策略、检索使用）
+- **2026-03-24** - 新增上下文工程、上下文优化、Re-ranker 文档
 - **2026-03-23** - 补充 RAG 检索技术导航，完善主 README 描述与阅读路径
 - **2024-03-23** - 初始版本，包含 5 大范式详解、框架对比、Java 示例
 
