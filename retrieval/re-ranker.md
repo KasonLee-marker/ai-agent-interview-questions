@@ -315,7 +315,151 @@ public class RetrievalPipeline {
 
 ---
 
-## 四、延伸追问
+## 四、Re-ranker 后的 Top-K 选择
+
+### 4.1 返回几个块？
+
+**一般返回 Top-5 到 Top-10**
+
+| 数量 | 适用场景 | 原因 |
+|------|---------|------|
+| **Top-3** | 事实型问答、单点查询 | 精准、低噪声 |
+| **Top-5** | 标准场景、短答案 | 平衡精度与覆盖 |
+| **Top-10** | 复杂推理、多跳问答 | 需要更多上下文支撑 |
+
+```mermaid
+flowchart LR
+    subgraph Tradeoff["Top-K 选择权衡"]
+        direction TB
+        K3["Top-3<br/>精度高<br/>可能漏信息"] --> K5["Top-5~10<br/>⭐推荐"]
+        K5 --> K20["Top-20+<br/>信息冗余<br/>成本增加"]
+    end
+    
+    style K5 fill:#e8f5e9
+```
+
+**为什么是 5-10 而不是更多？**
+
+- **太少（1-3）**：可能丢失关键信息，尤其多跳推理场景
+- **适中（5-10）**：覆盖主要信息源，Token 成本可控
+- **太多（15+）**：上下文膨胀，LLM 注意力分散，生成质量下降
+
+### 4.2 验证方法
+
+**离线验证：**
+
+```java
+/**
+ * 评估不同 Top-K 的效果
+ */
+public Map<Integer, Metrics> evaluateTopK(List<TestCase> testCases, 
+                                           int[] kValues) {
+    Map<Integer, Metrics> results = new HashMap<>();
+    
+    for (int k : kValues) {
+        int correct = 0;
+        int totalTokens = 0;
+        
+        for (TestCase testCase : testCases) {
+            // Re-ranker 重排
+            List<ScoredDocument> reranked = reRanker.rerank(
+                testCase.getQuery(), 
+                testCase.getCandidates(), 
+                100
+            );
+            
+            // 取 Top-K
+            List<Document> topK = reranked.stream()
+                .limit(k)
+                .map(ScoredDocument::getDocument)
+                .collect(Collectors.toList());
+            
+            // 检查是否包含答案文档
+            boolean hasAnswer = topK.stream()
+                .anyMatch(doc -> testCase.getAnswerDocs().contains(doc.getId()));
+            
+            if (hasAnswer) correct++;
+            totalTokens += topK.stream()
+                .mapToInt(doc -> estimateTokens(doc.getContent()))
+                .sum();
+        }
+        
+        results.put(k, new Metrics(
+            (double) correct / testCases.size(),  // Recall@K
+            totalTokens / testCases.size()        // 平均 Token 数
+        ));
+    }
+    
+    return results;
+}
+```
+
+**典型实验结果：**
+
+| Top-K | Recall@K | 平均 Token | 边际收益 |
+|-------|----------|-----------|---------|
+| 3 | 75% | 800 | - |
+| 5 | 88% | 1400 | +13% |
+| 10 | 94% | 2800 | +6% |
+| 15 | 96% | 4200 | +2% |
+| 20 | 97% | 5600 | +1% |
+
+**结论：** Top-5 到 Top-10 是性价比最高的区间
+
+### 4.3 动态选择策略
+
+**基于分数阈值：**
+
+```java
+public List<Document> adaptiveTopK(List<ScoredDocument> ranked, 
+                                    double threshold) {
+    List<Document> result = new ArrayList<>();
+    
+    for (int i = 0; i < ranked.size(); i++) {
+        ScoredDocument doc = ranked.get(i);
+        
+        // 绝对阈值：分数过低直接丢弃
+        if (doc.getScore() < 0.3) {
+            break;
+        }
+        
+        // 相对阈值：与第一名差距过大
+        if (i > 0) {
+            double gap = ranked.get(0).getScore() - doc.getScore();
+            if (gap > threshold) {
+                break;
+            }
+        }
+        
+        result.add(doc.getDocument());
+    }
+    
+    return result;
+}
+```
+
+**基于 Query 复杂度：**
+
+```java
+public int selectTopKByQuery(String query) {
+    // 简单判断 Query 复杂度
+    int wordCount = query.split("\\s+").length;
+    boolean hasMultipleQuestions = query.contains("?") && 
+                                   query.indexOf("?") != query.lastIndexOf("?");
+    
+    if (wordCount < 5 && !hasMultipleQuestions) {
+        return 3;  // 简单问题
+    } else if (hasMultipleQuestions || wordCount > 15) {
+        return 10; // 复杂问题
+    } else {
+        return 5;  // 标准问题
+    }
+}
+```
+
+---
+
+## 五、延伸追问
 
 1. **"Re-ranker 的分数和向量相似度分数可以融合吗？"**
    - 可以，但通常 Re-ranker 分数已足够可靠，直接按它排序即可
