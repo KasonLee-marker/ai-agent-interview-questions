@@ -47,6 +47,7 @@
 | **Hybrid Retrieval** | 稀疏+稠密结果融合 | [查看](./retrieval/hybrid-retrieval.md) |
 | **HyDE** | 查询增强与召回优化 | [查看](./retrieval/hyde.md) |
 | **Parent-Child Index** | 检索粒度与上下文保真 | [查看](./retrieval/parent-child-index.md) |
+| **RAG评测与优化** | 评测指标、优化策略、效果验证 | [查看](./retrieval/rag-evaluation.md) |
 
 **[RAG 检索专题总览 →](./retrieval/README.md)**
 
