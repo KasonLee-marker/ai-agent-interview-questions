@@ -467,11 +467,17 @@ flowchart LR
 **策略：**
 
 ```mermaid
-xychart-beta
-    title "LLM 注意力分布（示意图）"
-    x-axis [开头, 前部, 中部, 后部, 结尾]
-    y-axis "注意力权重" 0 --> 100
-    line "权重" [95, 85, 60, 75, 90]
+flowchart LR
+    A["开头\n注意力 ↑ 高"] --> B["前部\n注意力 较高"]
+    B --> C["中部\n注意力 ↓ 低"]
+    C --> D["后部\n注意力 回升"]
+    D --> E["结尾\n注意力 ↑ 高"]
+
+    style A fill:#1565C0,color:#fff
+    style B fill:#42A5F5,color:#fff
+    style C fill:#FF8F00,color:#fff
+    style D fill:#42A5F5,color:#fff
+    style E fill:#1565C0,color:#fff
 ```
 
 **应对方法：**
