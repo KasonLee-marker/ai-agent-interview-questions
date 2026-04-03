@@ -10,6 +10,7 @@
 | **Function Calling** | 工具注册与描述、参数校验、调用失败处理 | [function-calling.md](./function-calling.md) |
 | **任务规划** | 模型驱动规划、规则规划、混合规划策略 | [task-planning.md](./task-planning.md) |
 | **安全防护** | Prompt 注入防御、工具调用安全、权限控制 | [security.md](./security.md) |
+| **Agent 本质** | Agent vs API 转发器、核心特征、设计要点 | [agent-vs-api-relayer.md](./agent-vs-api-relayer.md) |
 
 ## 模块关系
 
@@ -29,3 +30,4 @@ flowchart LR
 - **Function Calling**：如何设计工具描述让模型准确选择？工具调用失败的重试策略？
 - **任务规划**：静态规划 vs 动态规划的选择依据？如何处理任务依赖和循环？
 - **安全防护**：Prompt 注入攻击的防御机制？敏感工具的权限隔离方案？
+- **Agent 本质**：如何区分真正的 Agent 和 API 转发器？设计一个 Agent 的关键要素？
