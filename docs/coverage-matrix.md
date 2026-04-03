@@ -113,7 +113,7 @@
 |--------|------|------|--------|------|
 | Agent 评测指标 | agent-evaluation.md | ✅ | 3 | **P0 - 已完成** |
 | LLM-as-a-Judge | llm-as-judge.md | ✅ | 3 | **P0 - 已完成** |
-| 人工评估 vs 自动评估 | - | ❌ | 0 | **P0** |
+| 人工评估 vs 自动评估 | human-vs-auto-evaluation.md | ✅ | 4 | **P0 - 已完成** |
 | LLM-as-a-Judge | - | ❌ | 0 | **P0** |
 | RAG 评测指标 | - | ❌ | 0 | P1 |
 | 幻觉检测 | - | ❌ | 0 | P1 |
@@ -162,10 +162,11 @@
 ### 待认领任务（按优先级排序）
 
 #### P0 - 紧急
-1. [ ] fundamentals/transformer-architecture.md - Transformer 架构详解
-2. [ ] fundamentals/attention-mechanism.md - 注意力机制详解
-3. [ ] evaluation/agent-evaluation.md - Agent 评测指标
-4. [ ] evaluation/llm-as-judge.md - LLM-as-a-Judge 方法
+1. [x] ~~evaluation/human-vs-auto-evaluation.md - 人工评估 vs 自动评估~~ ✅ 2026-04-03
+2. [ ] fundamentals/transformer-architecture.md - Transformer 架构详解
+3. [ ] fundamentals/attention-mechanism.md - 注意力机制详解
+4. [ ] evaluation/agent-evaluation.md - Agent 评测指标
+5. [ ] evaluation/llm-as-judge.md - LLM-as-a-Judge 方法
 
 #### P1 - 重要
 5. [ ] retrieval/dense-retrieval.md - 稠密检索/向量检索
@@ -186,3 +187,4 @@
 | 日期 | 操作 | 内容 |
 |------|------|------|
 | 2026-03-30 | 创建 | 初始化覆盖矩阵 |
+| 2026-04-03 | 完成 | 添加 evaluation/human-vs-auto-evaluation.md |
