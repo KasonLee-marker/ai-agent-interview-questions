@@ -80,7 +80,7 @@
 | **缺口** | | | | |
 | LangChain 深度解析 | - | ❌ | 0 | **高优先级** |
 | LlamaIndex 深度解析 | - | ❌ | 0 | **高优先级** |
-| LangChain vs LlamaIndex 对比 | - | ❌ | 0 | **高优先级** |
+| LangChain vs LlamaIndex 对比 | langchain-vs-llamaindex.md | ✅ | 3 | **已完成** |
 | AutoGPT/AutoGen 分析 | - | ❌ | 0 | 待补充 |
 | 框架选型决策树 | - | ❌ | 0 | 待补充 |
 
@@ -188,3 +188,4 @@
 |------|------|------|
 | 2026-03-30 | 创建 | 初始化覆盖矩阵 |
 | 2026-04-03 | 完成 | 添加 evaluation/human-vs-auto-evaluation.md |
+| 2026-04-07 | 完成 | 添加 frameworks/langchain-vs-llamaindex.md |
