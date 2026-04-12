@@ -15,7 +15,7 @@
 | **frameworks** | ⚠️ | 30% | ~3 | P1 |
 | **java-examples** | ⚠️ | 40% | ~4 | P2 |
 | **fundamentals** | ⚠️ | 57% | 13 | **P0** |
-| **evaluation** | ⚠️ | 33% | 12 | **P0** |
+| **evaluation** | ⚠️ | 40% | 16 | **P0** |
 | **deployment** | ❌ | 0% | 0 | P1 |
 | **multimodal** | ❌ | 0% | 0 | P2 |
 | **fine-tuning** | ❌ | 0% | 0 | P2 |
@@ -115,7 +115,7 @@
 | LLM-as-a-Judge | llm-as-judge.md | ✅ | 3 | **P0 - 已完成** |
 | 人工评估 vs 自动评估 | human-vs-auto-evaluation.md | ✅ | 4 | **P0 - 已完成** |
 | LLM-as-a-Judge | - | ❌ | 0 | **P0** |
-| RAG 评测指标 | - | ❌ | 0 | P1 |
+| RAG 评测指标 | rag-evaluation-metrics.md | ✅ | 4 | **P0 - 已完成** |
 | 幻觉检测 | - | ❌ | 0 | P1 |
 | A/B 测试设计 | - | ❌ | 0 | P1 |
 
@@ -189,3 +189,4 @@
 | 2026-03-30 | 创建 | 初始化覆盖矩阵 |
 | 2026-04-03 | 完成 | 添加 evaluation/human-vs-auto-evaluation.md |
 | 2026-04-07 | 完成 | 添加 frameworks/langchain-vs-llamaindex.md |
+| 2026-04-12 | 完成 | 添加 evaluation/rag-evaluation-metrics.md |
