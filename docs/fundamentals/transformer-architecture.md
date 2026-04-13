@@ -1,443 +1,504 @@
 # Transformer 架构详解
 
-> Transformer 是现代大语言模型的基石架构，理解其原理是掌握 LLM 的必经之路。
+> 深入理解 Transformer 的核心设计原理，掌握面试中常见的架构相关问题
 
 ---
 
 ## 一、概念与原理
 
-### 1.1 什么是 Transformer？
+### 1.1 什么是 Transformer
 
-Transformer 是 Google 在 2017 年论文《Attention Is All You Need》中提出的神经网络架构，完全基于 **Self-Attention（自注意力）机制**，摒弃了传统的 RNN/CNN 结构。
+Transformer 是一种基于**自注意力机制（Self-Attention）**的深度学习架构，由 Google 在 2017 年的论文《Attention Is All You Need》中提出。它彻底改变了 NLP 领域，成为现代大语言模型（LLM）的基石。
 
-**核心创新：**
-- **Self-Attention**：让模型在处理序列时能够同时关注所有位置
-- **并行计算**：相比 RNN 的串行处理，Transformer 可以高度并行化
-- **长距离依赖**：直接建模任意两个 token 之间的关系，无信息衰减
+**核心创新**：
+- 完全摒弃了 RNN/LSTM 的循环结构，采用**并行计算**
+- 引入 **Multi-Head Self-Attention** 机制捕捉全局依赖
+- 使用 **Position Encoding** 注入序列位置信息
 
-### 1.2 架构整体结构
+### 1.2 整体架构
 
 ```mermaid
 flowchart TB
-    subgraph Encoder["Encoder（编码器）"]
-        E1["Input Embedding<br/>+ Positional Encoding"]
-        E2["Multi-Head Attention"]
-        E3["Add & Norm"]
-        E4["Feed Forward"]
-        E5["Add & Norm"]
-        E1 --> E2 --> E3 --> E4 --> E5
+    subgraph Encoder["编码器（Encoder）"]
+        E1[输入嵌入<br/>Input Embedding]
+        E2[位置编码<br/>Positional Encoding]
+        E3[多头注意力<br/>Multi-Head Attention]
+        E4[前馈网络<br/>Feed Forward]
+        E5[Add & Norm]
+        E1 --> E2 --> E3 --> E5 --> E4 --> E5
     end
-
-    subgraph Decoder["Decoder（解码器）"]
-        D1["Output Embedding<br/>+ Positional Encoding"]
-        D2["Masked Multi-Head Attention"]
-        D3["Add & Norm"]
-        D4["Cross Attention"]
-        D5["Add & Norm"]
-        D6["Feed Forward"]
-        D7["Add & Norm"]
-        D1 --> D2 --> D3 --> D4 --> D5 --> D6 --> D7
+    
+    subgraph Decoder["解码器（Decoder）"]
+        D1[输出嵌入<br/>Output Embedding]
+        D2[位置编码<br/>Positional Encoding]
+        D3[Masked<br/>Self-Attention]
+        D4[Cross Attention<br/>编码器-解码器注意力]
+        D5[前馈网络<br/>Feed Forward]
+        D6[Add & Norm]
+        D1 --> D2 --> D3 --> D6 --> D4 --> D6 --> D5 --> D6
     end
-
-    E5 --> D4
+    
+    Encoder --> D4
+    D6 --> D7[Linear + Softmax]
+    D7 --> D8[输出概率分布]
 ```
 
 ### 1.3 核心组件详解
 
 #### 1.3.1 Self-Attention 机制
 
-**计算步骤：**
+Self-Attention 让序列中的每个位置都能**直接关注**到其他所有位置，计算它们之间的相关性权重。
+
+**计算公式**：
+
+$$
+\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V
+$$
+
+其中：
+- $Q$ (Query): 查询向量，表示"我要查什么"
+- $K$ (Key): 键向量，表示"我有什么"
+- $V$ (Value): 值向量，表示"实际内容"
+- $d_k$: Key 向量的维度，用于缩放点积
+
+**计算过程示例**：
 
 ```
-Input: X ∈ R^(n×d)
+输入序列: [我, 喜欢, 深度, 学习]
 
-Step 1: 生成 Q、K、V
-    Q = X · W_Q    (Query)
-    K = X · W_K    (Key)
-    V = X · W_V    (Value)
+Step 1: 生成 Q, K, V 矩阵
+  Q = X · W_Q    (每个词的查询向量)
+  K = X · W_K    (每个词的键向量)  
+  V = X · W_V    (每个词的值向量)
 
 Step 2: 计算注意力分数
-    Attention(Q, K, V) = softmax(QK^T / √d_k) · V
+  Scores = Q · K^T / √d_k
+  
+  结果矩阵 (4x4):
+       我    喜欢   深度   学习
+  我  [0.4   0.3   0.2   0.1]
+  喜欢 [0.2   0.4   0.2   0.2]
+  深度 [0.1   0.2   0.4   0.3]
+  学习 [0.1   0.2   0.3   0.4]
 
-其中 √d_k 是缩放因子，防止 softmax 进入梯度饱和区
+Step 3: Softmax + 加权求和
+  Attention = Softmax(Scores) · V
 ```
-
-**直观理解：**
-- **Query**：当前 token "想问什么"
-- **Key**：每个 token "能回答什么"
-- **Value**：每个 token "实际携带的信息"
-- **Attention Score**：Query 和 Key 的匹配程度，决定从每个 Value 取多少信息
 
 #### 1.3.2 Multi-Head Attention
 
-将注意力机制并行执行 h 次，每个 "头" 学习不同的关注模式：
+将注意力机制**并行执行多次**（多个"头"），每个头学习不同的关注模式。
 
+```mermaid
+flowchart LR
+    X[输入 X] --> QKV1[Q1,K1,V1]
+    X --> QKV2[Q2,K2,V2]
+    X --> QKV3[Q3,K3,V3]
+    X --> QKVh[Qh,Kh,Vh]
+    
+    QKV1 --> A1[Head 1]
+    QKV2 --> A2[Head 2]
+    QKV3 --> A3[Head 3]
+    QKVh --> Ah[Head h]
+    
+    A1 --> C[Concat]
+    A2 --> C
+    A3 --> C
+    Ah --> C
+    C --> L[Linear] --> O[输出]
 ```
-MultiHead(Q, K, V) = Concat(head_1, ..., head_h) · W_O
 
-where head_i = Attention(Q·W_Q^i, K·W_K^i, V·W_V^i)
-```
+**数学表达**：
+
+$$
+\text{MultiHead}(Q, K, V) = \text{Concat}(\text{head}_1, ..., \text{head}_h)W^O
+$$
+
+$$
+\text{head}_i = \text{Attention}(QW_i^Q, KW_i^K, VW_i^V)
+$$
 
 **为什么需要多头？**
-- 不同头可以捕捉不同的语义关系（语法、指代、语义等）
-- 增加模型的表达能力
+- 不同头可以学习不同的语义关系
+- 例如：Head 1 关注语法关系，Head 2 关注指代关系，Head 3 关注语义相似性
 
-#### 1.3.3 Position-wise Feed-Forward Network
+#### 1.3.3 前馈神经网络（Feed Forward）
 
-```
-FFN(x) = max(0, x·W_1 + b_1)·W_2 + b_2
-```
+每个编码器/解码器层包含一个全连接前馈网络：
 
-- 两个线性变换 + ReLU 激活
-- 对每个位置独立应用（"Position-wise"）
-- 通常中间维度 d_ff = 4d_model
+$$
+\text{FFN}(x) = \max(0, xW_1 + b_1)W_2 + b_2
+$$
+
+特点：
+- **位置独立**：对每个位置分别应用相同的网络
+- **升维再降维**：通常 512 → 2048 → 512
+- **ReLU 激活**：引入非线性
 
 #### 1.3.4 Layer Normalization & Residual Connection
 
+```mermaid
+flowchart LR
+    X[输入] --> ADD1[+]
+    ADD1 --> N1[LayerNorm]
+    N1 --> ATT[Self-Attention]
+    ATT --> ADD2[+]
+    X --> ADD2
+    ADD2 --> N2[LayerNorm]
+    N2 --> FFN[Feed Forward]
+    FFN --> ADD3[+]
+    ADD2 --> ADD3
+    ADD3 --> N3[LayerNorm]
+    N3 --> OUT[输出]
 ```
-Output = LayerNorm(x + Sublayer(x))
-```
 
-- **残差连接**：解决深层网络梯度消失问题
-- **LayerNorm**：稳定训练，加速收敛
+**残差连接（Residual Connection）**：
+- 解决深层网络的梯度消失问题
+- 公式：$\text{Output} = \text{LayerNorm}(x + \text{Sublayer}(x))$
 
-#### 1.3.5 Positional Encoding
-
-由于 Transformer 没有循环结构，需要显式注入位置信息：
-
-```
-PE(pos, 2i)   = sin(pos / 10000^(2i/d_model))
-PE(pos, 2i+1) = cos(pos / 10000^(2i/d_model))
-```
-
-**特点：**
-- 每个位置有唯一编码
-- 可以处理任意长度序列
-- 相对位置可以通过线性变换得到
-
-### 1.4 Encoder-Only vs Decoder-Only vs Encoder-Decoder
-
-| 架构类型 | 代表模型 | 特点 | 适用场景 |
-|---------|---------|------|---------|
-| **Encoder-Only** | BERT、RoBERTa | 双向注意力，适合理解任务 | 分类、NER、语义相似度 |
-| **Decoder-Only** | GPT 系列、LLaMA | 自回归生成，单向注意力 | 文本生成、对话 |
-| **Encoder-Decoder** | T5、BART | 编码器双向 + 解码器单向 | 翻译、摘要、改写 |
+**层归一化（Layer Normalization）**：
+- 对每个样本的所有特征进行归一化
+- 稳定训练，加速收敛
 
 ---
 
 ## 二、面试题详解
 
-### 题目 1：Transformer 相比 RNN 的优势是什么？（初级）
+### 题目 1：Transformer 相比 RNN/LSTM 的优势是什么？
 
-**题目描述：**
-请对比 Transformer 和 RNN/LSTM，说明 Transformer 的主要优势。
+**难度**：初级 ⭐
 
-**考察点：**
-- 对两种架构的理解深度
-- 能否从计算效率、建模能力等角度分析
+**考察点**：对序列模型演进的理解，知道 Transformer 的核心优势
 
-**详细解答：**
+#### 参考答案
 
 | 维度 | RNN/LSTM | Transformer |
-|-----|----------|-------------|
-| **并行性** | 序列计算，无法并行 | 完全并行，可充分利用 GPU |
-| **长距离依赖** | 信息逐层传递，易衰减 | 直接计算任意位置关系 |
-| **计算复杂度** | O(n) 每步，总 O(n) | O(n²) 注意力计算 |
-| **位置信息** | 隐式通过顺序传递 | 显式位置编码 |
+|------|----------|-------------|
+| **并行性** | 序列计算，无法并行 | 完全并行，计算效率高 |
+| **长距离依赖** | 梯度消失，难以捕捉 | 直接计算全局依赖，距离无关 |
+| **计算复杂度** | O(n) 每步，总 O(n²) | O(n²) 空间复杂度 |
+| **位置信息** | 天然有序列顺序 | 需要额外添加位置编码 |
 
-**关键优势总结：**
-1. **并行计算**：RNN 必须按顺序计算，Transformer 可以一次性处理整个序列
-2. **长距离依赖**：RNN 中远距离 token 需要经过多步传递，信息易丢失；Transformer 直接计算注意力
-3. **可解释性**：注意力权重直观展示模型关注了哪些位置
+**核心优势总结**：
+1. **并行计算**：RNN 必须按顺序处理，Transformer 可以一次性处理整个序列
+2. **长距离依赖**：Self-Attention 让任意两个位置直接交互，不受距离限制
+3. **可解释性**：注意力权重直观展示了模型关注的位置
 
-**代码示例（伪代码对比）：**
+> 💡 **面试技巧**：可以补充"这也是 GPT、BERT 等大模型都基于 Transformer 的原因"
+
+---
+
+### 题目 2：Self-Attention 中为什么要除以 √dₖ？
+
+**难度**：中级 ⭐⭐
+
+**考察点**：对注意力机制数学原理的深入理解
+
+#### 参考答案
+
+**原因：防止点积过大导致 Softmax 梯度消失**
+
+当 $d_k$ 较大时，$Q \cdot K^T$ 的点积结果会变得很大：
+
+```
+假设 Q 和 K 的分量是独立的随机变量，均值为 0，方差为 1
+那么 Q·K 的方差 = d_k × 1 = d_k
+标准差 = √d_k
+```
+
+**问题**：
+- 点积值过大 → Softmax 输入进入饱和区 → 梯度极小 → 难以训练
+
+**解决方案**：
+- 除以 √dₖ，将方差缩放回 1
+- 保持数值稳定性，避免梯度消失
+
+**代码示意**：
 
 ```java
-/**
- * RNN 串行处理
- * 必须按时间步逐个计算
- */
-public class RNNProcessor {
-    public List<HiddenState> process(List<Token> tokens) {
-        List<HiddenState> states = new ArrayList<>();
-        HiddenState prev = initialState;
+public class ScaledDotProductAttention {
+    
+    /**
+     * 计算缩放点积注意力
+     * 
+     * @param Q 查询矩阵 [batch, seq_len, d_k]
+     * @param K 键矩阵 [batch, seq_len, d_k]
+     * @param V 值矩阵 [batch, seq_len, d_v]
+     * @param mask 可选的掩码矩阵
+     * @return 注意力输出和权重
+     */
+    public AttentionResult forward(Tensor Q, Tensor K, Tensor V, Tensor mask) {
+        int d_k = Q.shape()[2];
         
-        for (Token token : tokens) {
-            // 必须等待上一步完成
-            prev = rnnCell(token, prev);
-            states.add(prev);
+        // 1. 计算点积: Q · K^T
+        Tensor scores = Q.matmul(K.transpose());  // [batch, seq_len, seq_len]
+        
+        // 2. 缩放: 除以 sqrt(d_k)
+        scores = scores.div(Math.sqrt(d_k));
+        
+        // 3. 应用掩码（如果是解码器的 Masked Attention）
+        if (mask != null) {
+            scores = scores.add(mask.mul(-1e9));  // 将 mask=1 的位置设为 -∞
         }
-        return states;
+        
+        // 4. Softmax 得到注意力权重
+        Tensor attentionWeights = softmax(scores);
+        
+        // 5. 加权求和: Attention · V
+        Tensor output = attentionWeights.matmul(V);
+        
+        return new AttentionResult(output, attentionWeights);
     }
-}
-
-/**
- * Transformer 并行处理
- * 可以同时计算所有位置的表示
- */
-public class TransformerProcessor {
-    public Tensor process(List<Token> tokens) {
-        // 1. 一次性嵌入所有 token
-        Tensor embeddings = embeddingLayer(tokens);  // [batch, seq_len, dim]
-        
-        // 2. 添加位置编码
-        Tensor withPos = embeddings + positionalEncoding;
-        
-        // 3. 并行通过所有层
-        for (TransformerLayer layer : layers) {
-            withPos = layer.forward(withPos);  // 整序列并行计算
-        }
-        
-        return withPos;
+    
+    private Tensor softmax(Tensor x) {
+        // Softmax 实现: exp(x_i) / sum(exp(x_j))
+        Tensor expX = x.exp();
+        return expX.div(expX.sum(dim=-1, keepdim=true));
     }
 }
 ```
 
 ---
 
-### 题目 2：Self-Attention 的计算过程是怎样的？（中级）
+### 题目 3：Multi-Head Attention 的作用是什么？为什么要用多个头？
 
-**题目描述：**
-请详细说明 Self-Attention 的计算步骤，并解释为什么要除以 √d_k。
+**难度**：中级 ⭐⭐
 
-**考察点：**
-- 注意力机制的内部计算流程
-- 对数值稳定性的理解
+**考察点**：理解多头注意力的设计动机和实际效果
 
-**详细解答：**
+#### 参考答案
 
-**计算步骤（以单头为例）：**
+**核心思想**：
+> 不同的注意力头可以学习不同的**关注模式**和**语义关系**
+
+**类比理解**：
+- 就像多人从不同角度观察同一个场景
+- 每个人关注不同的特征：颜色、形状、纹理、空间关系
+
+**具体作用**：
+
+| 头的类型 | 学习的关系 | 示例 |
+|---------|-----------|------|
+| **语法头** | 句法依赖 | "喜欢" → 指向宾语 "学习" |
+| **指代头** | 共指消解 | "它" → 指向 "深度学习" |
+| **语义头** | 语义相似 | "开心" ↔ "快乐" |
+| **位置头** | 相邻关系 | 关注前后相邻的词 |
+
+**数学优势**：
+- 单头注意力的表达能力有限（只有一个加权平均）
+- 多头相当于在**不同子空间**分别进行注意力计算
+- 最后拼接，相当于整合了多个视角的信息
+
+**实际观察**（来自论文《Attention Is All You Need》的可视化）：
+- 不同头确实展现出不同的关注模式
+- 有些头关注局部，有些头关注全局
+- 有些头呈现明显的语法树结构
+
+---
+
+### 题目 4：Transformer 的 Encoder 和 Decoder 有什么区别？
+
+**难度**：中级 ⭐⭐
+
+**考察点**：理解编码器-解码器架构的设计差异
+
+#### 参考答案
+
+```mermaid
+flowchart TB
+    subgraph ENC["编码器 Encoder"]
+        E1[Self-Attention<br/>双向]
+        E2[Feed Forward]
+        E1 --> E2
+    end
+    
+    subgraph DEC["解码器 Decoder"]
+        D1[Masked Self-Attention<br/>单向]
+        D2[Cross Attention<br/>连接编码器]
+        D3[Feed Forward]
+        D1 --> D2 --> D3
+    end
+    
+    ENC -.->|K, V| D2
+```
+
+**核心区别**：
+
+| 特性 | Encoder | Decoder |
+|------|---------|---------|
+| **注意力类型** | Self-Attention（双向） | Masked Self-Attention（单向） |
+| **额外注意力** | 无 | Cross Attention（连接 Encoder） |
+| **输入** | 源序列 | 已生成的目标序列 |
+| **输出** | 上下文表示 | 下一个词的预测 |
+
+**详细说明**：
+
+1. **Encoder 的 Self-Attention 是双向的**
+   - 每个位置可以看到整个输入序列的所有位置
+   - 适合理解任务（如 BERT）
+
+2. **Decoder 的 Self-Attention 是 Masked（掩码）的**
+   - 防止看到未来的信息（自回归生成）
+   - 位置 i 只能看到位置 ≤ i 的信息
+   - 实现方式：将未来位置设为 -∞
+
+3. **Decoder 有额外的 Cross Attention**
+   - 使用 Encoder 输出的 K, V
+   - 使用 Decoder 输入的 Q
+   - 实现"查询源序列信息"的机制
+
+**代码示意**：
 
 ```java
-/**
- * Self-Attention 计算实现
- */
-public class SelfAttention {
-    private final Matrix Wq, Wk, Wv;  // 可学习的投影矩阵
-    private final double scaleFactor;
+public class TransformerDecoderLayer {
     
-    public SelfAttention(int dModel, int dK) {
-        this.Wq = new Matrix(dModel, dK);
-        this.Wk = new Matrix(dModel, dK);
-        this.Wv = new Matrix(dModel, dK);
-        this.scaleFactor = Math.sqrt(dK);  // √d_k 缩放因子
+    private MultiHeadAttention maskedSelfAttn;
+    private MultiHeadAttention crossAttn;
+    private FeedForward ffn;
+    
+    /**
+     * 解码器前向传播
+     * 
+     * @param x 解码器输入 [batch, tgt_len, d_model]
+     * @param encoderOutput 编码器输出 [batch, src_len, d_model]
+     * @param tgtMask 目标序列掩码（防止看到未来）
+     * @return 解码器输出
+     */
+    public Tensor forward(Tensor x, Tensor encoderOutput, Tensor tgtMask) {
+        // 1. Masked Self-Attention
+        // 只能关注当前位置及之前的位置
+        x = maskedSelfAttn.forward(x, x, x, tgtMask);
+        x = layerNorm(x);
+        
+        // 2. Cross Attention (Encoder-Decoder Attention)
+        // Q 来自解码器，K/V 来自编码器
+        Tensor encoderK = encoderOutput;  // 编码器输出作为 Key
+        Tensor encoderV = encoderOutput;  // 编码器输出作为 Value
+        x = crossAttn.forward(x, encoderK, encoderV, null);
+        x = layerNorm(x);
+        
+        // 3. Feed Forward Network
+        x = ffn.forward(x);
+        x = layerNorm(x);
+        
+        return x;
+    }
+}
+
+/**
+ * 生成因果掩码（Causal Mask）
+ * 用于 Decoder 的 Masked Self-Attention
+ */
+public class MaskGenerator {
+    
+    /**
+     * 生成下三角掩码
+     * 
+     * @param size 序列长度
+     * @return 掩码矩阵 [size, size]
+     *         mask[i][j] = 0 (i >= j, 可以看到)
+         mask[i][j] = -inf (i < j, 不可见)
+     */
+    public static Tensor generateCausalMask(int size) {
+        Tensor mask = new Tensor(size, size);
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                if (i < j) {
+                    mask.set(i, j, Float.NEGATIVE_INFINITY);
+                } else {
+                    mask.set(i, j, 0);
+                }
+            }
+        }
+        return mask;
+    }
+}
+```
+
+---
+
+### 题目 5：为什么 Transformer 需要位置编码（Positional Encoding）？
+
+**难度**：中级 ⭐⭐
+
+**考察点**：理解位置编码的必要性和实现方式
+
+#### 参考答案
+
+**核心问题**：
+> Self-Attention 是**位置无关**的（Permutation Invariant）
+> 
+> "我喜欢猫" 和 "猫喜欢我" 在 Self-Attention 看来是一样的
+
+**解决方案**：
+在输入嵌入中加入位置信息，让模型知道每个词的**绝对位置**和**相对位置**
+
+**原始 Transformer 使用正弦/余弦位置编码**：
+
+$$
+PE_{(pos, 2i)} = \sin\left(\frac{pos}{10000^{2i/d_{model}}}\right)
+$$
+
+$$
+PE_{(pos, 2i+1)} = \cos\left(\frac{pos}{10000^{2i/d_{model}}}\right)
+$$
+
+**设计优点**：
+
+| 特性 | 说明 |
+|------|------|
+| **唯一性** | 每个位置有唯一的编码 |
+| **有界性** | 值域在 [-1, 1] 之间 |
+| **相对位置** | 可以通过线性变换得到相对位置信息 |
+| **外推性** | 可以泛化到训练时未见过的长度 |
+
+**现代变体**：
+- **Learned Positional Embedding**（BERT）：直接学习位置嵌入
+- **Rotary Position Embedding - RoPE**（LLaMA）：旋转位置编码
+- **ALiBi**：基于偏置的线性注意力
+
+**代码示意**：
+
+```java
+public class PositionalEncoding {
+    
+    private Tensor pe;  // 预计算的位置编码矩阵
+    private int dModel;
+    private int maxLen;
+    
+    public PositionalEncoding(int dModel, int maxLen) {
+        this.dModel = dModel;
+        this.maxLen = maxLen;
+        this.pe = computePE();
     }
     
     /**
-     * 前向计算
-     * @param X 输入矩阵 [seq_len, d_model]
-     * @return 注意力输出 [seq_len, d_k]
+     * 计算正弦位置编码
      */
-    public Matrix forward(Matrix X) {
-        // Step 1: 线性投影得到 Q、K、V
-        Matrix Q = X.multiply(Wq);  // [seq_len, d_k]
-        Matrix K = X.multiply(Wk);  // [seq_len, d_k]
-        Matrix V = X.multiply(Wv);  // [seq_len, d_k]
+    private Tensor computePE() {
+        Tensor pe = new Tensor(maxLen, dModel);
         
-        // Step 2: 计算注意力分数 Q·K^T
-        Matrix scores = Q.multiply(K.transpose());  // [seq_len, seq_len]
-        
-        // Step 3: 缩放（关键！）
-        scores = scores.divide(scaleFactor);  // 除以 √d_k
-        
-        // Step 4: Softmax 归一化
-        Matrix attentionWeights = softmax(scores);  // [seq_len, seq_len]
-        
-        // Step 5: 加权求和
-        Matrix output = attentionWeights.multiply(V);  // [seq_len, d_k]
-        
-        return output;
-    }
-}
-```
-
-**为什么要除以 √d_k？**
-
-当 d_k 较大时，Q·K^T 的点积值会很大（方差约为 d_k），导致：
-1. **Softmax 梯度消失**：输入值过大，softmax 进入饱和区，梯度极小
-2. **数值不稳定**：极端值导致计算溢出
-
-除以 √d_k 后，点积的方差被归一化为约 1，保持数值稳定。
-
-**可视化理解：**
-
-```
-假设 d_k = 64, √d_k = 8
-
-不缩放：Q·K^T 值范围 [-20, 20] → softmax 梯度接近 0
-缩放后：Q·K^T 值范围 [-2.5, 2.5] → softmax 梯度正常
-```
-
----
-
-### 题目 3：Multi-Head Attention 的作用是什么？（中级）
-
-**题目描述：**
-为什么 Transformer 使用 Multi-Head Attention 而不是单头注意力？多头之间有什么区别？
-
-**考察点：**
-- 多头注意力的设计动机
-- 对模型表达能力的影响
-
-**详细解答：**
-
-**设计动机：**
-
-单头注意力只能捕捉一种类型的依赖关系，而语言中存在多种关系：
-- **语法关系**：主谓宾结构
-- **指代关系**：代词指代
-- **语义关系**：同义词、上下位词
-- **位置关系**：相邻词关联
-
-**多头机制让不同头学习不同的关注模式。**
-
-**实现代码：**
-
-```java
-/**
- * Multi-Head Attention 实现
- */
-public class MultiHeadAttention {
-    private final int numHeads;
-    private final int dModel;
-    private final int dK;
-    private final List<SelfAttention> heads;
-    private final Matrix Wo;  // 输出投影矩阵
-    
-    public MultiHeadAttention(int numHeads, int dModel) {
-        this.numHeads = numHeads;
-        this.dModel = dModel;
-        this.dK = dModel / numHeads;  // 每个头的维度
-        
-        // 创建 numHeads 个独立的注意力头
-        this.heads = new ArrayList<>();
-        for (int i = 0; i < numHeads; i++) {
-            heads.add(new SelfAttention(dModel, dK));
-        }
-        
-        this.Wo = new Matrix(dModel, dModel);
-    }
-    
-    public Matrix forward(Matrix X) {
-        List<Matrix> headOutputs = new ArrayList<>();
-        
-        // 并行计算每个头的输出
-        for (SelfAttention head : heads) {
-            headOutputs.add(head.forward(X));  // [seq_len, d_k]
-        }
-        
-        // 拼接所有头的输出
-        Matrix concatenated = concatenate(headOutputs);  // [seq_len, d_model]
-        
-        // 最终线性投影
-        return concatenated.multiply(Wo);  // [seq_len, d_model]
-    }
-}
-```
-
-**实际观察到的不同头的分工：**
-
-| Head | 学习到的模式 | 示例 |
-|-----|------------|------|
-| Head 1 | 位置相关 | 关注相邻词 |
-| Head 2 | 句法关系 | 主语→动词 |
-| Head 3 | 指代消解 | 代词→名词 |
-| Head 4 | 语义相似 | 同义词关联 |
-
----
-
-### 题目 4：Transformer 的复杂度分析（高级）
-
-**题目描述：**
-请分析 Transformer 的时间和空间复杂度，并与 RNN 对比。为什么 Transformer 适合长序列但计算成本更高？
-
-**考察点：**
-- 复杂度分析能力
-- 对 Transformer 瓶颈的理解
-- 工程优化思维
-
-**详细解答：**
-
-**复杂度对比：**
-
-| 操作 | RNN | Transformer |
-|-----|-----|-------------|
-| **每层时间** | O(n·d²) | O(n²·d + n·d²) |
-| **总时间（L层）** | O(L·n·d²) | O(L·n²·d) |
-| **空间** | O(L·d) | O(L·n·d) |
-| **自回归生成** | O(1) 每步 | O(n) 每步 |
-
-**关键分析：**
-
-1. **Self-Attention 的 O(n²) 复杂度**
-   - 注意力矩阵是 n×n，计算所有位置对的注意力分数
-   - 当 n=512 时，需要计算 262K 个注意力分数
-   - 这是 Transformer 的主要计算瓶颈
-
-2. **为什么适合长序列？**
-   - **路径长度**：任意两个位置只需 1 步（O(1)）就能建立联系
-   - **RNN 路径长度**：位置 i 和 j 需要 |i-j| 步
-   - 长序列时，RNN 信息衰减严重，Transformer 保持完整
-
-3. **工程优化策略：**
-
-```java
-/**
- * 优化策略 1: 稀疏注意力（Sparse Attention）
- * 只关注局部窗口，降低复杂度到 O(n·w)
- */
-public class SparseAttention {
-    private final int windowSize;
-    
-    public Matrix forward(Matrix Q, Matrix K, Matrix V) {
-        // 只计算窗口内的注意力
-        for (int i = 0; i < seqLen; i++) {
-            int start = Math.max(0, i - windowSize);
-            int end = Math.min(seqLen, i + windowSize);
-            // 只关注 [start, end] 范围内的位置
-            computeLocalAttention(Q[i], K[start:end], V[start:end]);
-        }
-    }
-}
-
-/**
- * 优化策略 2: Flash Attention
- * 通过分块计算减少 HBM 访问
- */
-public class FlashAttention {
-    public Matrix forward(Matrix Q, Matrix K, Matrix V) {
-        // 将 Q、K、V 分成小块在 SRAM 中计算
-        // 避免存储完整的 n×n 注意力矩阵
-        for (Block qBlock : Q.blocks()) {
-            for (Block kvBlock : KV.blocks()) {
-                // 在 SRAM 中计算 softmax 和输出
-                onlineSoftmax(qBlock, kvBlock);
+        for (int pos = 0; pos < maxLen; pos++) {
+            for (int i = 0; i < dModel / 2; i++) {
+                double angle = pos / Math.pow(10000, 2.0 * i / dModel);
+                pe.set(pos, 2 * i, Math.sin(angle));
+                pe.set(pos, 2 * i + 1, Math.cos(angle));
             }
         }
+        
+        return pe;
     }
-}
-
-/**
- * 优化策略 3: KV Cache（推理时）
- * 缓存已计算的 K、V，避免重复计算
- */
-public class KVCache {
-    private Map<Integer, Matrix> cachedK = new HashMap<>();
-    private Map<Integer, Matrix> cachedV = new HashMap<>();
     
-    public Matrix forwardStep(Matrix newQ, Matrix newK, Matrix newV, int step) {
-        // 只计算新 token 与所有历史 token 的注意力
-        // 复用缓存的 K、V
-        Matrix allK = concatenate(cachedK.values(), newK);
-        Matrix allV = concatenate(cachedV.values(), newV);
-        
-        Matrix output = attention(newQ, allK, allV);
-        
-        // 缓存新的 K、V
-        cachedK.put(step, newK);
-        cachedV.put(step, newV);
-        
-        return output;
+    /**
+     * 将位置编码加到输入嵌入上
+     * 
+     * @param x 输入嵌入 [batch, seq_len, d_model]
+     * @return 加入位置编码后的张量
+     */
+    public Tensor forward(Tensor x) {
+        int seqLen = x.shape()[1];
+        // x = x + pe[0:seq_len]
+        return x.add(pe.slice(0, seqLen));
     }
 }
 ```
@@ -446,35 +507,52 @@ public class KVCache {
 
 ## 三、延伸追问
 
-### 追问 1：为什么 Transformer 使用 LayerNorm 而不是 BatchNorm？
+### 追问 1：Transformer 的计算复杂度是多少？如何优化？
 
-**简要答案：**
-- **序列长度不固定**：BatchNorm 需要固定 batch 统计量，NLP 序列长度变化大
-- **特征维度独立**：LayerNorm 对每个样本独立归一化，不受 batch 内其他样本影响
-- **训练和推理一致**：LayerNorm 不需要维护 running statistics
+**简要答案**：
+- Self-Attention: O(n² · d)，其中 n 是序列长度，d 是维度
+- 当 n 很大时（如长文档），n² 成为瓶颈
 
-### 追问 2：Positional Encoding 可以用可学习的参数代替吗？
+**优化方向**：
+| 方法 | 原理 | 代表工作 |
+|------|------|----------|
+| **稀疏注意力** | 只关注部分位置 | Longformer, BigBird |
+| **线性注意力** | 将复杂度降到 O(n) | Performer, Linear Transformer |
+| **分块注意力** | 分块处理长序列 | Sparse Transformer |
+| **Flash Attention** | IO-aware 优化 | FlashAttention v1/v2 |
 
-**简要答案：**
-- **可以**：如 BERT 使用可学习的 position embeddings
-- **正弦编码的优势**：
-  - 可以外推到训练时未见过的长度
-  - 蕴含相对位置信息（PE(pos+k) 可由 PE(pos) 线性变换得到）
-  - 不需要额外参数
+---
 
-### 追问 3：Decoder 中的 Masked Attention 是什么？为什么要 mask？
+### 追问 2：BERT 和 GPT 在 Transformer 架构上有什么区别？
 
-**简要答案：**
-- **作用**：防止解码时看到未来的 token（信息泄露）
-- **实现**：将未来位置的注意力分数设为 -∞（softmax 后变为 0）
-- **原因**：自回归生成必须按顺序，每个位置只能依赖已生成的内容
+**简要答案**：
 
-### 追问 4：Transformer 如何解决梯度消失问题？
+| 模型 | 架构 | 训练任务 | 应用 |
+|------|------|----------|------|
+| **BERT** | Encoder-only | Masked Language Model | 理解任务（分类、NER） |
+| **GPT** | Decoder-only | Causal Language Model | 生成任务（文本生成） |
+| **T5** | Encoder-Decoder | Span Corruption | 翻译、摘要 |
 
-**简要答案：**
-1. **残差连接（Residual Connection）**：直接传递梯度，避免梯度在深层衰减
-2. **LayerNorm**：稳定每层的输入分布，保持梯度健康
-3. **注意力机制**：直接连接任意位置，缩短梯度传播路径
+**关键区别**：
+- BERT 用双向 Attention，适合理解上下文
+- GPT 用因果 Mask，适合自回归生成
+
+---
+
+### 追问 3：LayerNorm 和 BatchNorm 有什么区别？为什么 Transformer 用 LayerNorm？
+
+**简要答案**：
+
+| 特性 | BatchNorm | LayerNorm |
+|------|-----------|-----------|
+| **归一化维度** | 跨 batch，同特征 | 同样本，跨特征 |
+| **序列长度变化** | 不稳定 | 稳定 |
+| **适合场景** | CNN | RNN/Transformer |
+
+**Transformer 用 LayerNorm 的原因**：
+1. 序列长度可变，BatchNorm 统计不稳定
+2. 训练/推理行为一致
+3. 残差连接 + LayerNorm 是标准配置
 
 ---
 
@@ -482,31 +560,39 @@ public class KVCache {
 
 ### 面试回答模板
 
-> Transformer 是一种基于 **Self-Attention** 的神经网络架构，核心优势是**并行计算**和**长距离依赖建模**。
->
-> **核心组件：**
-> 1. **Self-Attention**：通过 Query、Key、Value 计算注意力权重，让模型关注序列中任意位置
-> 2. **Multi-Head**：多个注意力头并行，捕捉不同类型的依赖关系
-> 3. **Position Encoding**：注入位置信息，补偿 Attention 的位置无关性
-> 4. **残差连接 + LayerNorm**：解决深层网络训练问题
->
-> **复杂度：** Self-Attention 是 O(n²)，主要瓶颈是注意力矩阵计算。工程上可用 Sparse Attention、Flash Attention 优化。
->
-> **vs RNN：** Transformer 并行度高、长距离依赖强，但计算复杂度更高；RNN 适合短序列、低延迟场景。
+> **Transformer 是一种基于自注意力机制的深度学习架构，核心创新是完全摒弃了 RNN 的循环结构，采用并行计算。**
+> 
+> **核心组件包括**：
+> 1. **Multi-Head Self-Attention**：让序列中任意位置直接交互，捕捉全局依赖
+> 2. **Position Encoding**：注入位置信息，弥补 Attention 的位置无关性
+> 3. **Feed Forward Network**：对每个位置独立进行非线性变换
+> 4. **Residual Connection + LayerNorm**：解决深层网络训练问题
+> 
+> **相比 RNN 的优势**：并行计算、长距离依赖、训练更快
 
 ### 一句话记忆
 
 | 概念 | 一句话 |
-|-----|--------|
-| **Transformer** | 用 Attention 代替循环，并行处理序列，直接建模任意位置关系 |
-| **Self-Attention** | Q 问 K 答，权重加权 V，除以 √d_k 防梯度消失 |
-| **Multi-Head** | 多个头学不同关系，语法、指代、语义各司其职 |
-| **复杂度** | 时间 O(n²)，空间 O(n)，长序列友好但计算贵 |
+|------|--------|
+| **Self-Attention** | 让每个词都能"看到"其他所有词，直接计算它们的关系 |
+| **Multi-Head** | 多个注意力头从不同角度观察，学习不同的语义关系 |
+| **Position Encoding** | 给模型一个"位置感"，让它知道词在句子中的顺序 |
+| **Scaled Dot-Product** | 除以 √dₖ 防止点积过大，Softmax 梯度消失 |
+
+### 核心公式速记
+
+```
+Attention(Q,K,V) = softmax(Q·K^T / √dₖ) · V
+
+MultiHead = Concat(head₁,...,headₕ) · W^O
+
+FFN(x) = ReLU(x·W₁ + b₁)·W₂ + b₂
+```
 
 ---
 
 ## 参考资料
 
 1. Vaswani et al. "Attention Is All You Need" (NeurIPS 2017)
-2. Devlin et al. "BERT: Pre-training of Deep Bidirectional Transformers"
-3. Brown et al. "Language Models are Few-Shot Learners" (GPT-3)
+2. Jay Alammar's Blog: "The Illustrated Transformer"
+3. Harvard NLP: "The Annotated Transformer"
