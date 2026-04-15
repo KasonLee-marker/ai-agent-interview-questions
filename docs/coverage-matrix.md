@@ -67,9 +67,9 @@
 | Function Calling | function-calling.md | ✅ | 3 | 完整 |
 | Task Planning | task-planning.md | ✅ | 3 | 完整 |
 | Security | security.md | ✅ | 3 | 完整 |
+| Tool Use 设计模式 | tool-use-patterns.md | ✅ | 3 | **P0 - 已完成** |
+| Error Handling | error-handling.md | ✅ | 3 | **P0 - 已完成** |
 | **缺口** | | | | |
-| Tool Use 设计模式 | - | ❌ | 0 | 待补充 |
-| Error Handling | - | ❌ | 0 | 待补充 |
 | Retry & Fallback | - | ❌ | 0 | 待补充 |
 
 ### 4. frameworks/ - 开发框架 ⚠️
@@ -103,7 +103,7 @@
 | 注意力机制（Self/Cross/Multi-head） | attention-mechanism.md | ✅ | 3 | **P0 - 已完成** |
 | 位置编码 | positional-encoding.md | ✅ | 3 | **P0 - 已完成** |
 | 预训练任务（MLM/CLM） | pretraining.md | ✅ | 3 | **P0 - 已完成** |
-| Tokenizer 原理 | - | ❌ | 0 | P1 |
+| Tokenizer 原理 | tokenizer.md | ✅ | 3 | **P0 - 已完成** |
 | 模型参数量与计算量 | - | ❌ | 0 | P1 |
 | 大模型架构变种 | - | ❌ | 0 | P1 |
 
@@ -163,10 +163,13 @@
 
 #### P0 - 紧急
 1. [x] ~~evaluation/human-vs-auto-evaluation.md - 人工评估 vs 自动评估~~ ✅ 2026-04-03
-2. [ ] fundamentals/transformer-architecture.md - Transformer 架构详解
-3. [ ] fundamentals/attention-mechanism.md - 注意力机制详解
-4. [ ] evaluation/agent-evaluation.md - Agent 评测指标
-5. [ ] evaluation/llm-as-judge.md - LLM-as-a-Judge 方法
+2. [x] ~~fundamentals/transformer-architecture.md - Transformer 架构详解~~ ✅ 2026-04-12
+3. [x] ~~fundamentals/attention-mechanism.md - 注意力机制详解~~ ✅ 2026-04-10
+4. [x] ~~evaluation/agent-evaluation.md - Agent 评测指标~~ ✅ 2026-04-10
+5. [x] ~~evaluation/llm-as-judge.md - LLM-as-a-Judge 方法~~ ✅ 2026-04-10
+6. [x] ~~agent/tool-use-patterns.md - Tool Use 设计模式~~ ✅ 2026-04-15
+7. [x] ~~agent/error-handling.md - 错误处理与容错设计~~ ✅ 2026-04-15
+8. [x] ~~fundamentals/tokenizer.md - Tokenizer 原理~~ ✅ 2026-04-15
 
 #### P1 - 重要
 5. [ ] retrieval/dense-retrieval.md - 稠密检索/向量检索
@@ -190,3 +193,4 @@
 | 2026-04-03 | 完成 | 添加 evaluation/human-vs-auto-evaluation.md |
 | 2026-04-07 | 完成 | 添加 frameworks/langchain-vs-llamaindex.md |
 | 2026-04-12 | 完成 | 添加 evaluation/rag-evaluation-metrics.md |
+| 2026-04-15 | 完成 | 添加 agent/tool-use-patterns.md, error-handling.md, fundamentals/tokenizer.md |
