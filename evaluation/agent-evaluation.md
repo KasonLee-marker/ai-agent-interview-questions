@@ -1,6 +1,6 @@
-# Agent 评测指标
+# Agent 评测指标详解
 
-> 如何评估 AI Agent 的效果：任务完成率、步骤效率、用户满意度
+> Agent 系统的评测是 AI 工程落地的关键环节，需要建立科学、全面的评估体系。
 
 ---
 
@@ -8,392 +8,773 @@
 
 ### 1.1 为什么需要 Agent 评测？
 
-**核心挑战：**
-- Agent 是**多步骤、多工具、多轮对话**的复杂系统
-- 传统 LLM 评测（如 perplexity、BLEU）不够用
-- 需要评估**端到端任务完成能力**
+传统 LLM 评测（如 MMLU、HumanEval）主要关注**静态能力**，而 Agent 评测需要评估**动态交互能力**：
 
-```mermaid
-flowchart TB
-    subgraph Traditional["传统 LLM 评测"]
-        T1["单轮输出质量"] --> T2["文本相似度"]
-        T2 --> T3["Perplexity"]
-    end
-    
-    subgraph Agent["Agent 评测"]
-        A1["多轮任务完成"] --> A2["工具使用正确性"]
-        A2 --> A3["步骤效率"]
-        A3 --> A4["用户满意度"]
-    end
-    
-    style Agent fill:#e8f5e9
-```
+| 维度 | LLM 评测 | Agent 评测 |
+|-----|---------|-----------|
+| **评估对象** | 单轮输出质量 | 多轮交互过程 |
+| **关注重点** | 知识/推理能力 | 工具使用、任务完成度 |
+| **成功标准** | 答案正确 | 任务完成 + 过程合理 |
+| **复杂性** | 相对简单 | 涉及环境交互、状态管理 |
 
-### 1.2 Agent 评测维度
-
-| 维度 | 说明 | 关键问题 |
-|------|------|----------|
-| **任务完成** | 是否达成目标 | 任务成功了吗？ |
-| **步骤效率** | 用了多少步 | 有没有走弯路？ |
-| **工具使用** | 工具调用是否正确 | 调用了对的工具吗？参数对吗？ |
-| **对话质量** | 交互是否自然 | 回复是否相关、连贯？ |
-| **安全性** | 是否有害输出 | 有没有泄露敏感信息？ |
-| **用户体验** | 用户是否满意 | 用户愿意再用吗？ |
-
-### 1.3 评测指标分类
+### 1.2 Agent 评测的核心维度
 
 ```mermaid
 mindmap
-  root((Agent 评测指标))
-    自动化指标
-      任务成功率
-      步骤数
-      工具准确率
-      延迟
-    基于模型的指标
-      LLM-as-a-Judge
-      奖励模型打分
-    人工评估
-      人工标注
-      用户满意度
-    对比指标
-      A/B 测试
-      人类对比
+  root((Agent 评测))
+    任务完成度
+      成功率
+      完成时间
+      步骤效率
+    工具使用
+      工具选择准确性
+      参数正确性
+      调用时机
+    推理质量
+      思考过程合理性
+      错误恢复能力
+      边界情况处理
+    用户体验
+      交互自然度
+      解释清晰度
+      主动性
 ```
+
+### 1.3 评测方法分类
+
+| 方法 | 描述 | 优点 | 缺点 |
+|-----|------|-----|------|
+| **规则评测** | 预定义成功条件和检查点 | 可解释性强、成本低 | 难以覆盖所有情况 |
+| **模型评测** | 使用 LLM-as-a-Judge | 灵活、可处理开放任务 | 成本高、可能有偏见 |
+| **人工评测** | 人类专家评估 | 最可靠 | 成本高、速度慢 |
+| **混合评测** | 规则 + 模型 + 人工 | 平衡效率和准确性 | 系统复杂 |
+
+### 1.4 主流评测基准
+
+| 基准 | 评测重点 | 任务类型 | 环境 |
+|-----|---------|---------|------|
+| **WebArena** | 网页操作能力 | 真实网站任务 | 真实网页 |
+| **Mind2Web** | 网页 Agent | 多步骤网页任务 | 真实网页 |
+| **SWE-bench** | 代码修复能力 | GitHub Issue 修复 | 真实代码库 |
+| **AgentBench** | 通用 Agent 能力 | 多领域任务 | 模拟环境 |
+| **ToolBench** | 工具使用能力 | API 调用任务 | 真实 API |
+| **GAIA** | 复杂问题求解 | 多步骤推理 | 真实世界信息 |
 
 ---
 
 ## 二、面试题详解
 
-### 题目 1：Agent 评测与传统 LLM 评测有什么区别？需要关注哪些特殊指标？
+### 题目 1：Agent 评测和传统 LLM 评测有什么区别？（初级）
 
-#### 考察点
-- Agent 与 LLM 的差异
-- 评测维度设计
-- 指标选择
+**题目描述：**
+请对比 Agent 评测和传统 LLM 评测（如 MMLU、HumanEval）的区别，说明 Agent 评测需要额外关注哪些维度。
 
-#### 详细解答
+**考察点：**
+- 对 Agent 特性的理解
+- 评测设计的系统思维
 
-**核心区别：**
+**详细解答：**
+
+**核心区别对比：**
+
+```mermaid
+flowchart TB
+    subgraph LLM["LLM 评测"]
+        L1["输入: Prompt"]
+        L2["输出: 文本"]
+        L3["评估: 答案匹配"]
+        L1 --> L2 --> L3
+    end
+    
+    subgraph Agent["Agent 评测"]
+        A1["输入: 任务目标"]
+        A2["过程: 多轮交互"]
+        A3["工具调用"]
+        A4["环境反馈"]
+        A5["评估: 任务完成度"]
+        A1 --> A2 --> A3 --> A4 --> A2
+        A4 --> A5
+    end
+```
+
+**关键差异：**
 
 | 维度 | LLM 评测 | Agent 评测 |
-|------|----------|------------|
-| **任务类型** | 单轮生成 | 多轮交互 |
-| **评估对象** | 文本质量 | 任务完成 |
-| **输出形式** | 纯文本 | 文本 + 工具调用 |
-| **上下文** | 单轮 | 多轮对话历史 |
-| **终止条件** | 生成结束 | 任务完成/失败 |
+|-----|---------|-----------|
+| **评估对象** | 单轮输出 | 多轮交互过程 |
+| **成功定义** | 答案正确 | 任务完成 + 过程合理 |
+| **时间维度** | 单次推理 | 多步骤、可能耗时较长 |
+| **环境交互** | 无 | 必须与环境/工具交互 |
+| **失败模式** | 答案错误 | 工具选错、参数错、陷入循环 |
 
-**Agent 特殊指标：**
-
-```mermaid
-flowchart TB
-    subgraph Metrics["Agent 核心指标"]
-        M1["任务成功率<br/>Task Success Rate"] --> M2["步骤效率<br/>Step Efficiency"]
-        M2 --> M3["工具准确率<br/>Tool Accuracy"]
-        M3 --> M4["对话连贯性<br/>Coherence"]
-        M4 --> M5["用户满意度<br/>Satisfaction"]
-    end
-```
-
-**1. 任务成功率（Task Success Rate）**
-
-```
-定义：成功完成任务的比例
-
-计算：
-Success Rate = 成功任务数 / 总任务数
-
-判断标准：
-- 硬标准：是否达到目标状态（如预订成功）
-- 软标准：人工/模型判断是否完成
-
-示例：
-- 预订酒店任务：100 个任务，85 个成功预订
-- Success Rate = 85%
-```
-
-**2. 步骤效率（Step Efficiency）**
-
-```
-定义：完成任务所需的步骤数
-
-计算：
-- 平均步骤数：Avg Steps = 总步骤数 / 任务数
-- 最优步骤比：实际步骤 / 理论最优步骤
-
-示例：
-- 查询天气任务：
-  - 理论最优：2 步（理解意图 → 调用 API）
-  - Agent 实际：5 步（多轮确认）
-  - 效率比：5/2 = 2.5（越接近 1 越好）
-```
-
-**3. 工具准确率（Tool Accuracy）**
-
-```
-定义：工具调用的正确性
-
-计算：
-- 工具选择准确率：正确选择工具 / 总工具调用
-- 参数准确率：参数正确的调用 / 总调用
-
-示例：
-- 100 次工具调用：
-  - 正确选择工具：92 次（92%）
-  - 参数完全正确：85 次（85%）
-```
-
-**Java 伪代码（指标计算）：**
+**Agent 评测特有维度：**
 
 ```java
-public class AgentMetrics {
+/**
+ * Agent 评测维度定义
+ */
+public class AgentEvaluationMetrics {
     
-    /**
-     * 任务成功率
-     */
-    public double taskSuccessRate(List<TaskResult> results) {
-        long successCount = results.stream()
-            .filter(TaskResult::isSuccess)
-            .count();
-        return (double) successCount / results.size();
+    // 1. 任务完成度
+    public class TaskCompletion {
+        double successRate;        // 任务成功率
+        double partialSuccessRate; // 部分成功率
+        int averageSteps;          // 平均完成步数
+        double timeEfficiency;     // 时间效率
     }
     
-    /**
-     * 平均步骤数
-     */
-    public double averageSteps(List<TaskResult> results) {
-        return results.stream()
-            .mapToInt(TaskResult::getStepCount)
-            .average()
-            .orElse(0);
+    // 2. 工具使用质量
+    public class ToolUsage {
+        double toolSelectionAccuracy;  // 工具选择准确率
+        double parameterAccuracy;      // 参数填写准确率
+        double unnecessaryToolRate;    // 不必要工具调用率
+        double toolCallSuccessRate;    // 工具调用成功率
     }
     
-    /**
-     * 工具调用准确率
-     */
-    public double toolAccuracy(List<ToolCall> calls) {
-        long correctCount = calls.stream()
-            .filter(ToolCall::isCorrect)
-            .count();
-        return (double) correctCount / calls.size();
+    // 3. 推理质量
+    public class ReasoningQuality {
+        double planningAccuracy;       // 规划准确性
+        double errorRecoveryRate;      // 错误恢复率
+        double hallucinationRate;      // 幻觉率
+        double contextUtilization;     // 上下文利用度
     }
     
-    /**
-     * 综合评分
-     */
-    public double compositeScore(TaskResult result) {
-        double successWeight = 0.5;
-        double efficiencyWeight = 0.3;
-        double toolWeight = 0.2;
-        
-        double successScore = result.isSuccess() ? 1.0 : 0.0;
-        double efficiencyScore = 1.0 / (1.0 + result.getStepCount() / result.getOptimalSteps());
-        double toolScore = result.getToolAccuracy();
-        
-        return successScore * successWeight 
-             + efficiencyScore * efficiencyWeight 
-             + toolScore * toolWeight;
+    // 4. 用户体验
+    public class UserExperience {
+        double responseRelevance;      // 回复相关性
+        double explanationClarity;     // 解释清晰度
+        double proactiveness;          // 主动性
     }
 }
 ```
 
----
+**示例对比：**
 
-### 题目 2：如何设计 Agent 的评测数据集？需要考虑哪些因素？
-
-#### 考察点
-- 数据集设计
-- 评测场景覆盖
-- 难度分层
-
-#### 详细解答
-
-**评测数据集设计原则：**
-
-```mermaid
-flowchart TB
-    subgraph Design["数据集设计"]
-        D1["多样性"] --> D2["覆盖不同场景"]
-        D2 --> D3["难度分层"]
-        D3 --> D4["可验证性"]
-        D4 --> D5["可复现性"]
-    end
-```
-
-**1. 场景覆盖**
-
-| 场景类型 | 示例 | 占比 |
-|----------|------|------|
-| **单工具简单任务** | 查天气、算数学 | 30% |
-| **多工具组合任务** | 查天气 + 推荐穿衣 | 40% |
-| **多轮对话任务** | 预订酒店（多轮确认） | 20% |
-| **边界/异常场景** | 工具失败、用户打断 | 10% |
-
-**2. 难度分层**
-
-```
-Level 1（简单）：单轮、单工具、明确意图
-- "北京今天天气怎么样？"
-- 预期：1-2 步完成
-
-Level 2（中等）：多轮、单工具、需确认
-- "帮我订个酒店"
-- 预期：3-5 步，需要确认地点、时间、预算
-
-Level 3（困难）：多工具、复杂推理
-- "我下周三去北京出差，帮我安排行程"
-- 预期：5-10 步，涉及机票、酒店、日程多个工具
-
-Level 4（极难）：开放域、长对话
-- "帮我规划一次日本自由行"
-- 预期：10+ 步，多轮交互，复杂规划
-```
-
-**3. 数据格式**
-
-```json
-{
-  "task_id": "hotel_booking_001",
-  "level": 2,
-  "category": "hotel_booking",
-  "user_query": "帮我订个北京的酒店",
-  "context": {
-    "user_profile": {"location": "上海", "budget": "500-800"},
-    "current_date": "2024-03-30"
-  },
-  "expected_tools": ["search_hotel", "book_hotel"],
-  "expected_steps": 4,
-  "success_criteria": {
-    "hotel_booked": true,
-    "city": "北京",
-    "check_in": "2024-03-31"
-  },
-  "evaluation": {
-    "auto_check": true,
-    "human_check": false
-  }
-}
-```
-
-**4. 可验证性设计**
-
-```
-自动验证：
-- 工具调用记录是否匹配预期
-- 最终状态是否满足成功条件
-- 步骤数是否在合理范围
-
-人工验证（抽样）：
-- 对话是否自然
-- 是否有更好的解决路径
-- 用户体验评分
-```
+| 场景 | LLM 评测 | Agent 评测 |
+|-----|---------|-----------|
+| 数学题 | 答案是否正确 | 是否能调用计算器、步骤是否合理 |
+| 代码生成 | 代码是否通过测试 | 是否能调试、修复错误 |
+| 问答 | 答案是否准确 | 是否能搜索、验证信息 |
 
 ---
 
-### 题目 3：Agent 评测中，自动评估和人工评估各有什么优缺点？如何平衡？
+### 题目 2：如何设计 Agent 的任务完成度评估？（中级）
 
-#### 考察点
-- 评估方法对比
-- 成本与质量权衡
-- 混合评估策略
+**题目描述：**
+请设计一个评估 Agent 任务完成度的方案，包括评估指标、评分标准和自动化实现思路。
 
-#### 详细解答
+**考察点：**
+- 评估指标设计能力
+- 自动化评测的工程思维
 
-**对比分析：**
+**详细解答：**
+
+**评估框架：**
 
 ```mermaid
 flowchart LR
-    subgraph Auto["自动评估"]
-        A1["✅ 低成本"] --> A2["✅ 可规模化"]
-        A2 --> A3["✅ 客观一致"]
-        A3 --> A4["❌ 可能不准"]
-    end
+    A[任务定义] --> B[成功标准]
+    B --> C[过程检查点]
+    C --> D[评分计算]
+    D --> E[结果输出]
+```
+
+**三级评估体系：**
+
+```java
+/**
+ * Agent 任务完成度评估器
+ */
+public class TaskCompletionEvaluator {
     
-    subgraph Human["人工评估"]
-        H1["✅ 准确可靠"] --> H2["✅ 捕捉细节"]
-        H2 --> H3["❌ 成本高"]
-        H3 --> H4["❌ 主观差异"]
-    end
+    /**
+     * 评估结果
+     */
+    public class EvaluationResult {
+        TaskStatus status;           // SUCCESS / PARTIAL / FAILED
+        double completionScore;      // 0-100 完成度分数
+        List<CheckpointResult> checkpoints;  // 检查点结果
+        String failureReason;        // 失败原因
+        int stepsTaken;              // 实际步数
+        int optimalSteps;            // 最优步数
+        long timeSpentMs;            // 耗时
+    }
+    
+    /**
+     * 三级评估
+     */
+    public EvaluationResult evaluate(Task task, AgentTrajectory trajectory) {
+        // Level 1: 结果检查
+        boolean resultCorrect = checkFinalResult(task, trajectory);
+        
+        // Level 2: 过程检查
+        List<CheckpointResult> checkpoints = checkProcess(task, trajectory);
+        
+        // Level 3: 效率评估
+        EfficiencyMetrics efficiency = evaluateEfficiency(task, trajectory);
+        
+        // 综合评分
+        double score = calculateScore(resultCorrect, checkpoints, efficiency);
+        
+        return new EvaluationResult(score, checkpoints, efficiency);
+    }
+    
+    /**
+     * 检查点定义示例
+     */
+    private List<Checkpoint> defineCheckpoints(Task task) {
+        List<Checkpoint> checkpoints = new ArrayList<>();
+        
+        // 检查点 1: 任务理解
+        checkpoints.add(new Checkpoint(
+            "task_understanding",
+            "Agent 正确理解任务目标",
+            CheckType.MODEL_GRADING  // 用模型判断
+        ));
+        
+        // 检查点 2: 工具选择
+        checkpoints.add(new Checkpoint(
+            "tool_selection",
+            "选择了正确的工具",
+            CheckType.RULE_BASED     // 规则判断
+        ));
+        
+        // 检查点 3: 关键步骤
+        checkpoints.add(new Checkpoint(
+            "key_steps",
+            "完成了关键步骤",
+            CheckType.RESULT_MATCH    // 结果匹配
+        ));
+        
+        return checkpoints;
+    }
+}
 ```
 
-**详细对比：**
+**评分标准设计：**
 
-| 维度 | 自动评估 | 人工评估 |
-|------|----------|----------|
-| **成本** | ✅ 低 | ❌ 高（需要标注员） |
-| **速度** | ✅ 实时 | ❌ 慢（需要人工时间） |
-| **一致性** | ✅ 客观稳定 | ⚠️ 主观差异 |
-| **准确性** | ⚠️ 可能误判 | ✅ 准确可靠 |
-| **细节捕捉** | ❌ 难捕捉细微差别 | ✅ 能发现细节问题 |
-| **可扩展** | ✅ 容易扩展 | ❌ 难扩展 |
-| **适用场景** | 大规模快速评估 | 小样本精细评估 |
+| 等级 | 分数范围 | 标准 | 示例 |
+|-----|---------|------|------|
+| **完美** | 100 | 完全正确 + 最优路径 | 最少步骤完成，无冗余操作 |
+| **优秀** | 80-99 | 正确完成 + 小瑕疵 | 多了一两步，或参数有小问题 |
+| **及格** | 60-79 | 部分完成 | 完成主要目标，有次要问题 |
+| **失败** | < 60 | 未完成或严重错误 | 工具选错、陷入死循环 |
 
-**混合评估策略：**
+**自动化实现：**
 
-```
-1. 自动评估先行（100% 样本）
-   - 快速筛选明显失败/成功的案例
-   - 计算基础指标
-
-2. 人工抽样复核（10-20% 样本）
-   - 边界案例（自动评估不确定）
-   - 随机抽样验证自动评估准确性
-   - 新类型任务（自动评估未覆盖）
-
-3. LLM-as-a-Judge 辅助（50-80% 样本）
-   - 比纯规则自动评估更准确
-   - 比人工评估成本低
-   - 需要校准与人工评估的一致性
-```
-
-**成本效益分析：**
-
-```
-场景：10,000 个 Agent 对话需要评估
-
-方案 A：纯人工
-- 成本：10,000 × 5分钟 × $0.5/分钟 = $2,500
-- 时间：10,000 × 5分钟 = 833 小时
-
-方案 B：自动 + 人工抽样 10%
-- 自动：$0（脚本运行）
-- 人工：1,000 × 5分钟 × $0.5 = $250
-- 时间：83 小时
-- 节省：90% 成本和时间
-
-方案 C：LLM-as-Judge + 人工抽样 5%
-- LLM：10,000 × $0.01 = $100
-- 人工：500 × 5分钟 × $0.5 = $125
-- 总计：$225
-- 时间：42 小时
+```java
+/**
+ * 自动化评测流程
+ */
+public class AutomatedEvaluator {
+    
+    public EvaluationReport runEvaluation(Agent agent, TestSuite testSuite) {
+        EvaluationReport report = new EvaluationReport();
+        
+        for (TestCase testCase : testSuite.getCases()) {
+            // 1. 设置环境
+            Environment env = setupEnvironment(testCase);
+            
+            // 2. 运行 Agent
+            AgentTrajectory trajectory = agent.execute(testCase.getGoal(), env);
+            
+            // 3. 多维度评估
+            TaskResult taskResult = evaluateTaskCompletion(testCase, trajectory);
+            ToolResult toolResult = evaluateToolUsage(testCase, trajectory);
+            SafetyResult safetyResult = evaluateSafety(trajectory);
+            
+            // 4. 聚合结果
+            TestResult result = aggregate(taskResult, toolResult, safetyResult);
+            report.addResult(result);
+        }
+        
+        // 5. 生成统计报告
+        return report.generateStatistics();
+    }
+    
+    /**
+     * 规则评测示例
+     */
+    private boolean ruleBasedCheck(Trajectory trajectory, Rule rule) {
+        switch (rule.getType()) {
+            case TOOL_SEQUENCE:
+                // 检查工具调用顺序
+                return checkToolSequence(trajectory, rule.getExpectedSequence());
+                
+            case RESULT_CONTAINS:
+                // 检查结果是否包含特定内容
+                return trajectory.getFinalOutput().contains(rule.getExpectedContent());
+                
+            case NO_ERROR:
+                // 检查是否无错误
+                return trajectory.getErrors().isEmpty();
+                
+            case STEP_COUNT:
+                // 检查步数是否在合理范围
+                return trajectory.getSteps() <= rule.getMaxSteps();
+                
+            default:
+                return false;
+        }
+    }
+}
 ```
 
 ---
 
-## 三、总结
+### 题目 3：Agent 评测中的 LLM-as-a-Judge 方法有什么优缺点？（中级）
+
+**题目描述：**
+请说明使用 LLM 作为评测者（LLM-as-a-Judge）的方法，分析其优缺点，以及如何缓解潜在问题。
+
+**考察点：**
+- 对 LLM 评测的理解
+- 对偏见和可靠性问题的认识
+
+**详细解答：**
+
+**LLM-as-a-Judge 原理：**
+
+```mermaid
+flowchart LR
+    A[Agent 输出] --> C[LLM Judge]
+    B[参考答案/标准] --> C
+    C --> D[评分/判断]
+    
+    style C fill:#f9f,stroke:#333
+```
+
+**实现示例：**
+
+```java
+/**
+ * LLM-as-a-Judge 实现
+ */
+public class LLMJudge {
+    
+    private final LLM model;
+    
+    /**
+     * 评分模式
+     */
+    public Score score(String agentOutput, String reference, String criteria) {
+        String prompt = buildScoringPrompt(agentOutput, reference, criteria);
+        String response = model.generate(prompt);
+        return parseScore(response);
+    }
+    
+    /**
+     * 对比模式
+     */
+    public ComparisonResult compare(String outputA, String outputB, String task) {
+        String prompt = String.format("""
+            任务: %s
+            
+            输出 A:
+            %s
+            
+            输出 B:
+            %s
+            
+            请判断哪个输出更好，并说明原因。
+            回复格式: {"winner": "A/B/Tie", "reason": "..."}
+            """, task, outputA, outputB);
+        
+        String response = model.generate(prompt);
+        return parseComparison(response);
+    }
+    
+    /**
+     * 构建评分 Prompt
+     */
+    private String buildScoringPrompt(String output, String reference, String criteria) {
+        return String.format("""
+            你是一个专业的评测员。请根据以下标准对 Agent 的输出进行评分。
+            
+            评分标准: %s
+            
+            参考答案: %s
+            
+            Agent 输出: %s
+            
+            请从 1-10 打分，并说明理由。
+            回复格式: {"score": 8, "reason": "..."}
+            """, criteria, reference, output);
+    }
+}
+```
+
+**优点：**
+
+| 优点 | 说明 |
+|-----|------|
+| **灵活性** | 可评估开放性问题，无需预定义规则 |
+| **多维度** | 可同时评估准确性、流畅性、安全性等 |
+| **可解释** | 可要求模型给出评分理由 |
+| **成本低** | 比人工评测便宜，比规则评测覆盖广 |
+
+**缺点及缓解策略：**
+
+| 缺点 | 影响 | 缓解策略 |
+|-----|------|---------|
+| **位置偏见** | 偏好第一个或最后一个选项 | 多次交换位置评测，取平均 |
+| **长度偏见** | 偏好更长的回答 | 归一化评分，或明确要求简洁 |
+| **自我提升** | 偏好自己生成的内容 | 使用不同模型做评测 |
+| **标准漂移** | 不同时间/批次标准不一致 | 加入参考样本校准 |
+| **成本** | 大量评测时 API 费用高 | 先用规则筛选，再用 LLM 复核 |
+
+**最佳实践：**
+
+```java
+/**
+ * 缓解偏见的评测策略
+ */
+public class RobustLLMJudge {
+    
+    /**
+     * 多次评测取平均（缓解位置偏见）
+     */
+    public Score robustScore(String output, String reference) {
+        List<Score> scores = new ArrayList<>();
+        
+        // 多次评测，交换位置
+        for (int i = 0; i < 3; i++) {
+            scores.add(llmJudge.score(output, reference));
+        }
+        
+        // 去掉最高最低，取平均
+        return calculateRobustAverage(scores);
+    }
+    
+    /**
+     * 多模型评测（缓解模型特定偏见）
+     */
+    public ConsensusScore multiModelJudge(String output, String reference) {
+        Map<String, Score> modelScores = new HashMap<>();
+        
+        // 使用多个模型评测
+        modelScores.put("gpt-4", gpt4Judge.score(output, reference));
+        modelScores.put("claude", claudeJudge.score(output, reference));
+        modelScores.put("glm", glmJudge.score(output, reference));
+        
+        // 计算一致性
+        double agreement = calculateAgreement(modelScores);
+        
+        // 多数投票
+        Score consensus = majorityVote(modelScores);
+        
+        return new ConsensusScore(consensus, agreement, modelScores);
+    }
+    
+    /**
+     * 人机结合（关键决策人工复核）
+     */
+    public EvaluationResult hybridEvaluation(String output, String reference) {
+        // 1. LLM 初筛
+        Score llmScore = llmJudge.score(output, reference);
+        
+        // 2. 低置信度样本人工复核
+        if (llmScore.getConfidence() < 0.7) {
+            return humanJudge.score(output, reference);
+        }
+        
+        return llmScore;
+    }
+}
+```
+
+---
+
+### 题目 4：如何构建 Agent 评测数据集？（高级）
+
+**题目描述：**
+请设计一个 Agent 评测数据集的构建流程，包括数据收集、标注、质量控制和多样性保障。
+
+**考察点：**
+- 数据集构建的系统能力
+- 对 Agent 评测特殊性的理解
+
+**详细解答：**
+
+**数据集构建流程：**
+
+```mermaid
+flowchart TB
+    A[需求分析] --> B[数据收集]
+    B --> C[任务设计]
+    C --> D[环境搭建]
+    D --> E[标准答案标注]
+    E --> F[质量验证]
+    F --> G[发布维护]
+```
+
+**详细设计：**
+
+```java
+/**
+ * Agent 评测数据集构建器
+ */
+public class AgentBenchmarkBuilder {
+    
+    /**
+     * 步骤 1: 需求分析
+     */
+    public class Requirements {
+        List<Capability> targetCapabilities;  // 目标能力
+        List<Domain> domains;                  // 覆盖领域
+        DifficultyDistribution difficulty;     // 难度分布
+        int targetSize;                        // 目标规模
+    }
+    
+    /**
+     * 步骤 2: 数据收集
+     */
+    public class DataCollection {
+        
+        // 来源 1: 真实场景日志
+        public List<Task> collectFromLogs(String logSource) {
+            // 从生产环境收集真实用户请求
+            // 脱敏处理
+            // 筛选有代表性的任务
+        }
+        
+        // 来源 2: 人工设计
+        public List<Task> designByExperts(List<Capability> capabilities) {
+            // 领域专家设计边界案例
+            // 覆盖各种成功/失败场景
+        }
+        
+        // 来源 3: 合成生成
+        public List<Task> synthesize(Task template, int count) {
+            // 基于模板生成变体
+            // 使用 LLM 扩展多样性
+        }
+    }
+    
+    /**
+     * 步骤 3: 任务设计
+     */
+    public class TaskDesign {
+        
+        public Task createTask(TaskType type) {
+            Task task = new Task();
+            
+            // 任务描述
+            task.setDescription(generateDescription(type));
+            
+            // 初始状态
+            task.setInitialState(createInitialState(type));
+            
+            // 成功标准
+            task.setSuccessCriteria(defineSuccessCriteria(type));
+            
+            // 检查点
+            task.setCheckpoints(defineCheckpoints(type));
+            
+            // 元数据
+            task.setMetadata(createMetadata(type));
+            
+            return task;
+        }
+        
+        /**
+         * 成功标准定义
+         */
+        private SuccessCriteria defineSuccessCriteria(TaskType type) {
+            return SuccessCriteria.builder()
+                .requiredResults(Arrays.asList("result1", "result2"))
+                .forbiddenActions(Arrays.asList("delete", "drop"))
+                .maxSteps(20)
+                .maxTimeMinutes(5)
+                .build();
+        }
+    }
+    
+    /**
+     * 步骤 4: 环境搭建
+     */
+    public class EnvironmentSetup {
+        
+        /**
+         * 沙箱环境
+         */
+        public Sandbox createSandbox() {
+            return Sandbox.builder()
+                .isolated(true)           // 隔离
+                .snapshotSupport(true)    // 支持快照
+                .resettable(true)         // 可重置
+                .observable(true)         // 可观测
+                .build();
+        }
+        
+        /**
+         * 工具集定义
+         */
+        public List<Tool> defineTools() {
+            return Arrays.asList(
+                Tool.builder()
+                    .name("search")
+                    .description("搜索信息")
+                    .parameters(searchParams())
+                    .build(),
+                Tool.builder()
+                    .name("calculator")
+                    .description("计算")
+                    .parameters(calcParams())
+                    .build()
+            );
+        }
+    }
+    
+    /**
+     * 步骤 5: 标注
+     */
+    public class Annotation {
+        
+        /**
+         * 多维度标注
+         */
+        public TaskAnnotation annotate(Task task) {
+            TaskAnnotation annotation = new TaskAnnotation();
+            
+            // 参考答案轨迹
+            annotation.setReferenceTrajectory(
+                expertDemonstrate(task)
+            );
+            
+            // 难度评级
+            annotation.setDifficulty(
+                rateDifficulty(task)
+            );
+            
+            // 能力标签
+            annotation.setRequiredCapabilities(
+                identifyCapabilities(task)
+            );
+            
+            // 常见错误模式
+            annotation.setCommonErrors(
+                identifyCommonErrors(task)
+            );
+            
+            return annotation;
+        }
+    }
+    
+    /**
+     * 步骤 6: 质量验证
+     */
+    public class QualityValidation {
+        
+        public ValidationReport validate(Dataset dataset) {
+            ValidationReport report = new ValidationReport();
+            
+            // 检查 1: 可解性
+            report.setSolvabilityCheck(checkAllSolvable(dataset));
+            
+            // 检查 2: 确定性
+            report.setDeterminismCheck(checkDeterministic(dataset));
+            
+            // 检查 3: 多样性
+            report.setDiversityMetrics(calculateDiversity(dataset));
+            
+            // 检查 4: 难度分布
+            report.setDifficultyDistribution(analyzeDifficulty(dataset));
+            
+            // 检查 5: 标注一致性
+            report.setAnnotationAgreement(checkInterAnnotatorAgreement(dataset));
+            
+            return report;
+        }
+    }
+}
+```
+
+**质量控制清单：**
+
+| 检查项 | 方法 | 通过标准 |
+|-------|------|---------|
+| **可解性** | 专家完成 | 100% 可解 |
+| **确定性** | 多次运行 | 结果一致 |
+| **无歧义** | 多人标注 | 一致性 > 90% |
+| **难度适中** | 预测试 | 成功率 30-70% |
+| **无泄漏** | 检查训练集 | 无重复/相似 |
+| **多样性** | 统计分析 | 覆盖目标分布 |
+
+---
+
+## 三、延伸追问
+
+### 追问 1：如何处理评测中的非确定性问题？
+
+**简要答案：**
+- **多次运行**：对非确定性 Agent 多次评测取平均
+- **置信区间**：报告分数时附带置信区间
+- **确定性约束**：评测时固定随机种子
+- **统计检验**：使用配对 t 检验比较不同模型
+
+### 追问 2：Agent 评测中的安全问题如何评估？
+
+**简要答案：**
+- **有害指令遵循**：测试是否执行危险操作
+- **隐私保护**：检查是否泄露敏感信息
+- **权限控制**：验证越权访问防护
+- **沙箱隔离**：确保评测环境安全隔离
+
+### 追问 3：如何评估 Agent 的鲁棒性？
+
+**简要答案：**
+- **对抗测试**：输入扰动、歧义表述
+- **边界测试**：极端参数、空输入
+- **错误注入**：工具失败、网络异常
+- **压力测试**：高并发、长序列
+
+### 追问 4：评测结果如何可视化展示？
+
+**简要答案：**
+- **雷达图**：多维度能力对比
+- **热力图**：不同任务类型表现
+- **学习曲线**：随训练步数的变化
+- **错误分析**：失败案例分类统计
+
+---
+
+## 四、总结
 
 ### 面试回答模板
 
-> Agent 评测需要关注**任务完成率、步骤效率、工具准确率、用户满意度**四个核心维度。
+> Agent 评测需要关注**任务完成度、工具使用质量、推理过程、用户体验**四个核心维度。
 >
-> **与传统 LLM 评测的区别**：Agent 是多轮交互系统，需要评估端到端任务完成能力，而非单轮文本质量。
+> **评测方法：**
+> 1. **规则评测**：预定义检查点，适合确定性任务
+> 2. **LLM-as-a-Judge**：灵活评估开放任务，注意位置/长度偏见
+> 3. **人工评测**：最可靠，用于关键决策和校准
 >
-> **自动 vs 人工评估**：自动评估成本低、可规模化，但可能不准确；人工评估准确但成本高。实践中采用**自动评估先行 + 人工抽样复核**的混合策略。
+> **关键指标：**
+> - 成功率、完成步数、工具选择准确率
+> - 错误恢复率、幻觉率、用户满意度
 >
-> **数据集设计**：需要覆盖多样场景、难度分层、确保可验证性。
+> **数据集构建：**
+> - 真实场景 + 专家设计 + 合成生成
+> - 必须验证可解性、确定性、多样性
+>
+> **主流基准：** WebArena、SWE-bench、AgentBench、GAIA
 
 ### 一句话记忆
 
 | 概念 | 一句话 |
-|------|--------|
-| **任务成功率** | 核心指标，是否达成目标 |
-| **步骤效率** | 走没走弯路，用了多少步 |
-| **工具准确率** | 调用的工具对不对，参数准不准 |
-| **自动评估** | 快但可能不准，适合大规模筛选 |
-| **人工评估** | 准但成本高，适合精细验证 |
+|-----|--------|
+| **Agent 评测** | 不只是答案对，还要看过程、工具、效率 |
+| **LLM Judge** | 灵活但可能有偏见，多模型+人工来校准 |
+| **三级评估** | 结果对、过程对、效率高 |
+| **数据集构建** | 真实+专家+合成，质量把控要严格 |
 
 ---
 
-> 💡 **提示**：Agent 评测是工程落地的关键环节，好的评估体系是迭代优化的基础。
+## 参考资料
+
+1. Zhou et al. "AgentBench: Evaluating LLMs as Agents" (2023)
+2. Shi et al. "Mind2Web: Towards a Generalist Agent for the Web" (2023)
+3. Jimenez et al. "SWE-bench: Can Language Models Resolve Real-World GitHub Issues?" (2023)
+4. Mialon et al. "GAIA: A Benchmark for General AI Assistants" (2023)
+5. Zheng et al. "Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena" (2023)

@@ -45,6 +45,7 @@
 | 知识点 | 文件 | 状态 | 题目数 | 备注 |
 |--------|------|------|--------|------|
 | BM25 | bm25.md | ✅ | 2 | 完整 |
+| Dense Retrieval | dense-retrieval.md | ✅ | 3 | 完整 |
 | Hybrid Retrieval | hybrid-retrieval.md | ✅ | 2 | 完整 |
 | HyDE | hyde.md | ✅ | 2 | 完整 |
 | Parent-Child Index | parent-child-index.md | ✅ | 2 | 完整 |
@@ -53,10 +54,8 @@
 | Context Optimization | context-optimization.md | ✅ | 2 | 完整 |
 | RAG Evaluation | rag-evaluation.md | ✅ | 3 | 完整 |
 | **缺口** | | | | |
-| Dense Retrieval (向量检索) | - | ❌ | 0 | **高优先级** |
-| Embedding 模型选型 | - | ❌ | 0 | **高优先级** |
-| Dense Retrieval | dense-retrieval.md | ✅ | 3 | **P0 - 已完成** |
-| 向量数据库对比 | - | ❌ | 0 | **高优先级** |
+| Embedding 模型选型 | - | ❌ | 0 | **P0 - 待补充** |
+| 向量数据库对比 | - | ❌ | 0 | **P0 - 待补充** |
 | 多路召回 | - | ❌ | 0 | 待补充 |
 
 ### 3. agent/ - Agent 核心组件 ✅
@@ -107,15 +106,15 @@
 | 模型参数量与计算量 | - | ❌ | 0 | P1 |
 | 大模型架构变种 | - | ❌ | 0 | P1 |
 
-### 7. evaluation/ - 评估评测 ⚠️
+### 7. evaluation/ - 评估评测 ✅
 
 | 知识点 | 文件 | 状态 | 题目数 | 备注 |
 |--------|------|------|--------|------|
-| Agent 评测指标 | agent-evaluation.md | ✅ | 3 | **P0 - 已完成** |
+| Agent 评测指标 | agent-evaluation.md | ✅ | 4 | **P0 - 已完成** |
 | LLM-as-a-Judge | llm-as-judge.md | ✅ | 3 | **P0 - 已完成** |
 | 人工评估 vs 自动评估 | human-vs-auto-evaluation.md | ✅ | 4 | **P0 - 已完成** |
-| LLM-as-a-Judge | - | ❌ | 0 | **P0** |
 | RAG 评测指标 | rag-evaluation-metrics.md | ✅ | 4 | **P0 - 已完成** |
+| **缺口** | | | | |
 | 幻觉检测 | - | ❌ | 0 | P1 |
 | A/B 测试设计 | - | ❌ | 0 | P1 |
 
@@ -171,17 +170,36 @@
 7. [x] ~~agent/error-handling.md - 错误处理与容错设计~~ ✅ 2026-04-15
 8. [x] ~~fundamentals/tokenizer.md - Tokenizer 原理~~ ✅ 2026-04-15
 
+#### P0 - 紧急（新增缺口）
+9. [ ] agent/retry-fallback.md - Retry & Fallback 机制
+10. [ ] retrieval/embedding-models.md - Embedding 模型选型
+11. [ ] retrieval/vector-database-comparison.md - 向量数据库对比
+
 #### P1 - 重要
-5. [ ] retrieval/dense-retrieval.md - 稠密检索/向量检索
-6. [ ] retrieval/embedding-models.md - Embedding 模型选型
-7. [ ] frameworks/langchain-deep-dive.md - LangChain 深度解析
-8. [ ] frameworks/llamaindex-deep-dive.md - LlamaIndex 深度解析
-9. [ ] deployment/model-inference-optimization.md - 模型推理优化
+12. [ ] fundamentals/model-parameters-computation.md - 模型参数量与计算量
+13. [ ] fundamentals/llm-architecture-variants.md - 大模型架构变种
+14. [ ] frameworks/langchain-deep-dive.md - LangChain 深度解析（完善）
+15. [ ] frameworks/llamaindex-deep-dive.md - LlamaIndex 深度解析（完善）
+16. [ ] deployment/model-inference-optimization.md - 模型推理优化
+17. [ ] deployment/quantization.md - 量化技术
+18. [ ] deployment/inference-engines.md - 推理引擎对比
+19. [ ] deployment/agent-deployment.md - Agent 服务化部署
 
 #### P2 - 一般
-10. [ ] deployment/quantization.md - 量化技术
-11. [ ] java-examples/ReActAgent.java - Java 实现示例
-12. [ ] multimodal/vlm-basics.md - 多模态基础
+20. [ ] deployment/streaming-output.md - 流式输出设计
+21. [ ] deployment/load-balancing.md - 负载均衡与扩缩容
+22. [ ] fine-tuning/sft.md - SFT 监督微调
+23. [ ] fine-tuning/rlhf.md - RLHF 原理
+24. [ ] fine-tuning/lora.md - LoRA/QLoRA 高效微调
+25. [ ] fine-tuning/instruction-data.md - 指令微调数据构建
+26. [ ] multimodal/vlm.md - 多模态理解（VLM）
+27. [ ] multimodal/image-text-retrieval.md - 图文检索
+28. [ ] multimodal/multimodal-agent.md - 多模态 Agent 架构
+29. [ ] multimodal/image-tool-calling.md - 工具调用中的图像处理
+30. [ ] java-examples/ReActAgent.java - Java 实现示例
+31. [ ] java-examples/PlanAndSolveAgent.java - Java 实现示例
+32. [ ] java-examples/MultiAgentOrchestrator.java - Java 实现示例
+33. [ ] java-examples/ReflexionAgent.java - Java 实现示例
 
 ---
 
@@ -194,3 +212,4 @@
 | 2026-04-07 | 完成 | 添加 frameworks/langchain-vs-llamaindex.md |
 | 2026-04-12 | 完成 | 添加 evaluation/rag-evaluation-metrics.md |
 | 2026-04-15 | 完成 | 添加 agent/tool-use-patterns.md, error-handling.md, fundamentals/tokenizer.md |
+| 2026-04-16 | 扫描 | 合并重复文件，统一目录结构，更新缺口清单 |
