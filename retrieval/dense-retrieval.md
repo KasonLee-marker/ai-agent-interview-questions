@@ -1,1040 +1,640 @@
-# 稠密检索（Dense Retrieval）详解
+# 稠密检索（Dense Retrieval）
 
-> 向量检索原理、ANN 算法、与稀疏检索的对比
+> 基于向量表示的语义检索技术，RAG 系统的核心组件
 
 ---
 
 ## 一、概念与原理
 
-### 1.1 什么是稠密检索？
+### 1.1 什么是稠密检索
 
-**稠密检索（Dense Retrieval）** 是将文本编码为低维稠密向量（Dense Vector），通过向量相似度进行检索的方法。与基于词匹配的稀疏检索（如 BM25）不同，稠密检索利用语义向量捕捉深层语义关系。
+稠密检索（Dense Retrieval）是一种将文本转换为低维稠密向量（Dense Vector），通过向量相似度计算来实现语义检索的技术。与基于词项匹配的传统稀疏检索（如 BM25）不同，稠密检索能够捕获查询和文档之间的语义关系，即使它们没有共享相同的词汇。
 
-```mermaid
-flowchart TB
-    subgraph Sparse["稀疏检索（BM25）"]
-        S1["查询：苹果 公司"] --> S2["倒排索引匹配"]
-        S2 --> S3["必须包含"苹果"和"公司""]
-        S3 --> S4["无法召回：苹果公司"]
-        style S4 fill:#ffebee
-    end
-    
-    subgraph Dense["稠密检索（Dense）"]
-        D1["查询：苹果 公司"] --> D2["编码为向量<br/>[0.1, -0.3, 0.8, ...]"]
-        D3["文档：苹果公司"] --> D4["编码为向量<br/>[0.2, -0.2, 0.9, ...]"]
-        D2 --> D5["向量相似度计算"]
-        D4 --> D5
-        D5 --> D6["高相似度 → 召回"]
-        style D6 fill:#e8f5e9
-    end
-```
-
-### 1.2 稠密检索的核心流程
+### 1.2 核心原理
 
 ```mermaid
 flowchart LR
-    A["文本"] --> B["编码器<br/>Encoder"]
-    B --> C["稠密向量<br/>768维"]
-    C --> D["向量索引<br/>ANN索引"]
-    D --> E["相似度搜索<br/>Top-K检索"]
+    subgraph 索引阶段
+        A[文档] --> B[Embedding模型]
+        B --> C[稠密向量]
+        C --> D[向量数据库]
+    end
     
-    style B fill:#e3f2fd
-    style C fill:#e8f5e9
-    style D fill:#fff3e0
-```
-
-**关键组件：**
-
-| 组件 | 功能 | 代表技术 |
-|------|------|---------|
-| **编码器** | 文本 → 向量 | BERT、Sentence-BERT、OpenAI Embedding |
-| **向量维度** | 通常为 384/768/1024 维 | - |
-| **相似度度量** | 向量间距离计算 | 余弦相似度、点积、欧氏距离 |
-| **ANN 索引** | 高效近似最近邻搜索 | HNSW、IVF、PQ |
-
-### 1.3 稠密检索 vs 稀疏检索
-
-```mermaid
-flowchart TB
-    subgraph Compare["检索方式对比"]
-        direction TB
-        
-        Sparse["稀疏检索"] --> S_F["优点：精确匹配、可解释、无需训练"]
-        Sparse --> S_C["缺点：语义鸿沟、同义词问题"]
-        
-        Dense["稠密检索"] --> D_F["优点：语义理解、容错性强"]
-        Dense --> D_C["缺点：需要训练、黑盒、计算资源"]
+    subgraph 查询阶段
+        E[查询] --> F[Embedding模型]
+        F --> G[查询向量]
+        G --> H[相似度搜索]
+        D --> H
+        H --> I[Top-K结果]
     end
 ```
 
-| 维度 | 稀疏检索（BM25） | 稠密检索（向量） |
-|------|-----------------|-----------------|
-| **匹配方式** | 词项精确匹配 | 语义向量相似 |
-| **容错性** | 低（必须关键词命中） | 高（理解同义词） |
-| **训练需求** | 无需训练 | 需要编码器模型 |
-| **可解释性** | 高（知道匹配了哪个词） | 低（黑盒） |
-| **资源消耗** | 低（CPU 即可） | 高（需要 GPU） |
-| **索引大小** | 小（倒排索引） | 大（向量存储） |
-| **新词处理** | 差（OOV 问题） | 好（语义泛化） |
-| **多语言** | 需分词 | 天然支持 |
+**关键步骤：**
+1. **编码（Encoding）**：使用预训练的 Embedding 模型将文本编码为固定维度的向量
+2. **索引（Indexing）**：将文档向量存储到高效的向量数据库中
+3. **搜索（Search）**：将查询编码为向量，在向量空间中查找最相似的文档
+
+### 1.3 向量相似度度量
+
+| 度量方式 | 公式 | 适用场景 |
+|---------|------|---------|
+| **余弦相似度** | $\cos(\theta) = \frac{A \cdot B}{\|A\| \|B\|}$ | 方向比模长更重要 |
+| **欧氏距离** | $d = \sqrt{\sum_{i=1}^{n}(A_i - B_i)^2}$ | 绝对距离有意义时 |
+| **点积** | $A \cdot B = \sum_{i=1}^{n}A_i B_i$ | 向量已归一化时 |
+
+> 💡 **提示**：实际应用中，余弦相似度最常用，因为它不受向量模长影响，只关注语义方向。
+
+### 1.4 双编码器架构
+
+```mermaid
+flowchart TB
+    subgraph 双编码器
+        A[查询] --> E1[Query Encoder]
+        D[文档] --> E2[Doc Encoder]
+        E1 --> V1[查询向量]
+        E2 --> V2[文档向量]
+    end
+    
+    V1 --> S[相似度计算]
+    V2 --> S
+    S --> R[相关性分数]
+```
+
+**特点：**
+- 查询和文档分别编码，可以离线索引文档
+- 推理时只需编码查询，检索效率高
+- 代表模型：DPR、Contriever、GTE
 
 ---
 
 ## 二、面试题详解
 
-### 题目 1：稠密检索的基本原理是什么？与稀疏检索相比有什么优缺点？
+### 题目 1（初级）：稠密检索 vs 稀疏检索
+
+**问题**：请对比稠密检索（Dense Retrieval）和稀疏检索（Sparse Retrieval，如 BM25）的区别，并说明各自的适用场景。
 
 #### 考察点
-- 稠密检索原理
-- 编码器作用
-- 两种检索方式对比
+- 对两种检索范式的理解深度
+- 知道各自的优缺点和适用边界
+- 能够在实际场景中做出合理选择
 
 #### 详细解答
 
-**稠密检索原理：**
-
-```mermaid
-flowchart TB
-    subgraph Principle["稠密检索原理"]
-        P1["双塔架构"] --> P2["查询编码器<br/>Query Encoder"]
-        P1 --> P3["文档编码器<br/>Document Encoder"]
-        
-        P2 --> P4["查询向量 q<br/>[768维]"]
-        P3 --> P5["文档向量 d<br/>[768维]"]
-        
-        P4 --> P6["相似度计算<br/>sim(q, d)"]
-        P5 --> P6
-        
-        P6 --> P7["排序返回<br/>Top-K"]
-    end
-```
-
-**双塔架构（Bi-Encoder）：**
-
-```
-查询 "如何学习机器学习" → Query Encoder → [0.1, -0.3, 0.8, ...]
-文档 "机器学习入门指南" → Doc Encoder → [0.2, -0.2, 0.9, ...]
-
-相似度计算：
-cosine_sim = dot(q, d) / (||q|| * ||d||) = 0.95
-
-高相似度 → 相关文档
-```
-
-**编码器演进：**
-
-| 阶段 | 模型 | 特点 |
-|------|------|------|
-| **1.0** | BERT 句向量 | 取 [CLS] 或平均池化 |
-| **2.0** | Sentence-BERT | 使用孪生网络训练 |
-| **3.0** | OpenAI Embedding | API 调用，效果优秀 |
-| **4.0** | E5、BGE | 针对检索任务优化 |
-
-**优缺点对比：**
-
-| 维度 | 稀疏检索 | 稠密检索 |
-|------|---------|---------|
-| **优点** | ✅ 精确匹配<br>✅ 可解释<br>✅ 无需训练<br>✅ 资源消耗低 | ✅ 语义理解<br>✅ 同义词处理<br>✅ 多语言支持<br>✅ 语义泛化 |
-| **缺点** | ❌ 语义鸿沟<br>❌ 同义词问题<br>❌ 新词 OOV | ❌ 需要训练<br>❌ 黑盒不可解释<br>❌ 资源消耗高<br>❌ 领域迁移难 |
+| 维度 | 稀疏检索（BM25） | 稠密检索（Dense Retrieval） |
+|------|-----------------|---------------------------|
+| **表示方式** | 高维稀疏向量（词袋模型） | 低维稠密向量（通常 384-1024 维） |
+| **匹配方式** | 词项精确/模糊匹配 | 语义相似度匹配 |
+| **词汇鸿沟** | 存在（同义词无法匹配） | 不存在（语义层面匹配） |
+| **计算效率** | 倒排索引，查询快 | 需要向量检索，略慢 |
+| **存储开销** | 小 | 大（需存储浮点向量） |
+| **可解释性** | 高（可看到匹配词项） | 低（黑盒语义表示） |
+| **冷启动** | 无需训练 | 依赖预训练模型 |
 
 **适用场景：**
 
-```mermaid
-flowchart TB
-    subgraph SparseS["稀疏检索适合"]
-        S1["精确匹配需求<br/>产品型号、错误代码"]
-        S2["关键词搜索<br/>品牌名称、技术术语"]
-        S3["可解释性要求<br/>搜索日志分析"]
-    end
-    
-    subgraph DenseS["稠密检索适合"]
-        D1["语义理解需求<br/>自然语言问答"]
-        D2["同义词处理<br/>"电脑"→"计算机""]
-        D3["多语言场景<br/>跨语言检索"]
-        D4["语义相似度<br/>找相似文档"]
-    end
-```
+- **稀疏检索适合**：
+  - 关键词精确匹配场景（如产品型号、ID 查询）
+  - 资源受限环境
+  - 需要高可解释性的场景
 
-**Java 伪代码：**
+- **稠密检索适合**：
+  - 语义理解类查询（如"如何解决内存泄漏"）
+  - 长文档检索（语义压缩）
+  - 多语言场景（跨语言检索）
+
+#### Java 伪代码示例
 
 ```java
 /**
- * 稠密检索系统
- * 
- * 核心思想：将文本编码为稠密向量，通过向量相似度检索
+ * 混合检索服务 - 结合稀疏和稠密检索的优势
  */
-public class DenseRetrievalSystem {
+public class HybridRetrievalService {
     
-    private final EmbeddingModel encoder;      // 编码器模型
-    private final VectorIndex vectorIndex;     // 向量索引
-    private final SimilarityMetric metric;     // 相似度度量
-    
-    /**
-     * 索引文档
-     * @param documents 文档列表
-     */
-    public void indexDocuments(List<Document> documents) {
-        for (Document doc : documents) {
-            // 1. 编码文档为向量
-            float[] vector = encoder.encode(doc.getContent());
-            
-            // 2. 添加到向量索引
-            vectorIndex.add(doc.getId(), vector, doc.getMetadata());
-        }
-        
-        // 3. 构建索引（如 HNSW、IVF）
-        vectorIndex.build();
-    }
+    private final SparseRetriever sparseRetriever;  // BM25
+    private final DenseRetriever denseRetriever;    // 向量检索
+    private final double sparseWeight = 0.3;        // 稀疏检索权重
+    private final double denseWeight = 0.7;         // 稠密检索权重
     
     /**
-     * 检索
-     * @param query 查询文本
-     * @param topK 返回数量
-     * @return 检索结果
+     * 混合检索
+     * 
+     * @param query 用户查询
+     * @param topK 返回结果数
+     * @return 融合后的排序结果
      */
-    public List<RetrievalResult> search(String query, int topK) {
-        // 1. 编码查询
-        float[] queryVector = encoder.encode(query);
+    public List<RetrievalResult> retrieve(String query, int topK) {
+        // 1. 并行执行两种检索
+        List<RetrievalResult> sparseResults = sparseRetriever.search(query, topK);
+        List<RetrievalResult> denseResults = denseRetriever.search(query, topK);
         
-        // 2. 向量相似度搜索
-        List<VectorSearchResult> candidates = vectorIndex.search(queryVector, topK * 2);
+        // 2. 结果融合（RRF - Reciprocal Rank Fusion）
+        Map<String, Double> scoreMap = new HashMap<>();
         
-        // 3. 精排（可选）
-        List<RetrievalResult> results = rerank(candidates, query);
-        
-        // 4. 返回 Top-K
-        return results.subList(0, Math.min(topK, results.size()));
-    }
-    
-    /**
-     * 计算相似度
-     */
-    public float calculateSimilarity(float[] v1, float[] v2) {
-        switch (metric) {
-            case COSINE:
-                return cosineSimilarity(v1, v2);
-            case DOT_PRODUCT:
-                return dotProduct(v1, v2);
-            case EUCLIDEAN:
-                return -euclideanDistance(v1, v2);  // 取负，越大越相似
-            default:
-                throw new IllegalArgumentException("Unknown metric");
-        }
-    }
-    
-    /**
-     * 余弦相似度
-     */
-    private float cosineSimilarity(float[] v1, float[] v2) {
-        float dot = 0, norm1 = 0, norm2 = 0;
-        for (int i = 0; i < v1.length; i++) {
-            dot += v1[i] * v2[i];
-            norm1 += v1[i] * v1[i];
-            norm2 += v2[i] * v2[i];
-        }
-        return dot / (float)(Math.sqrt(norm1) * Math.sqrt(norm2));
-    }
-    
-    /**
-     * 点积
-     */
-    private float dotProduct(float[] v1, float[] v2) {
-        float sum = 0;
-        for (int i = 0; i < v1.length; i++) {
-            sum += v1[i] * v2[i];
-        }
-        return sum;
-    }
-}
-
-/**
- * 文档
- */
-@Data
-class Document {
-    private String id;
-    private String content;
-    private Map<String, Object> metadata;
-}
-
-/**
- * 检索结果
- */
-@Data
-class RetrievalResult {
-    private String docId;
-    private String content;
-    private float score;
-    private Map<String, Object> metadata;
-}
-```
-
----
-
-### 题目 2：稠密检索中的编码器有哪些类型？双塔架构和单塔架构有什么区别？
-
-#### 考察点
-- 编码器架构
-- 双塔 vs 单塔
-- 性能与效率权衡
-
-#### 详细解答
-
-**编码器类型：**
-
-```mermaid
-flowchart TB
-    subgraph Encoders["编码器架构"]
-        E1["双塔架构<br/>Bi-Encoder"] --> E1_D["查询和文档分别编码<br/>效率高，适合召回"]
-        E2["单塔架构<br/>Cross-Encoder"] --> E2_D["查询和文档拼接编码<br/>精度高，适合精排"]
-        E3["多向量架构<br/>ColBERT"] --> E3_D["每个 token 一个向量<br/>细粒度匹配"]
-    end
-```
-
-**1. 双塔架构（Bi-Encoder）：**
-
-```mermaid
-flowchart LR
-    Q["查询"] --> QE["Query Encoder"]
-    D["文档"] --> DE["Doc Encoder"]
-    
-    QE --> QV["q_vec"]
-    DE --> DV["d_vec"]
-    
-    QV --> S["相似度计算"]
-    DV --> S
-    
-    S --> Score["Score"]
-```
-
-**特点：**
-- 查询和文档独立编码
-- 文档向量可离线预计算和索引
-- 检索时只需编码查询，效率高
-- 适合大规模召回
-
-**2. 单塔架构（Cross-Encoder）：**
-
-```mermaid
-flowchart LR
-    Q["查询"] --> C["拼接"]
-    D["文档"] --> C
-    C --> E["[SEP]"] --> EN["Encoder"]
-    EN --> Score["Score"]
-```
-
-**特点：**
-- 查询和文档拼接后一起编码
-- 可以捕捉细粒度交互
-- 每次都要重新编码，效率低
-- 适合小规模精排
-
-**对比：**
-
-| 维度 | 双塔（Bi-Encoder） | 单塔（Cross-Encoder） |
-|------|-------------------|----------------------|
-| **架构** | 分别编码 | 拼接编码 |
-| **效率** | ✅ 高（文档可预索引） | ❌ 低（每次重新编码） |
-| **精度** | 中 | ✅ 高（细粒度交互） |
-| **适用阶段** | 召回 | 精排 |
-| **计算复杂度** | O(n) 检索 | O(n) 重编码 |
-| **代表模型** | DPR、Sentence-BERT | BERT Cross-Encoder |
-
-**3. 多向量架构（ColBERT）：**
-
-```mermaid
-flowchart LR
-    Q["查询<br/>3个token"] --> QE["每个token一个向量"]
-    QE --> QV["[q1,q2,q3]"]
-    
-    D["文档<br/>100个token"] --> DE["每个token一个向量"]
-    DE --> DV["[d1,d2,...,d100]"]
-    
-    QV --> M["MaxSim计算"]
-    DV --> M
-    
-    M --> Score["Score"]
-```
-
-**特点：**
-- 每个 token 一个向量
-- Late Interaction：查询时计算相似度
-- 平衡效率和精度
-
-**Java 伪代码：**
-
-```java
-/**
- * 编码器架构对比
- */
-public class EncoderArchitectures {
-    
-    private final EmbeddingModel queryEncoder;
-    private final EmbeddingModel docEncoder;
-    private final CrossEncoder crossEncoder;
-    
-    /**
-     * 双塔编码（Bi-Encoder）
-     * 特点：分别编码，效率高，适合召回
-     */
-    public float biEncoderScore(String query, String doc) {
-        // 分别编码（文档可预计算）
-        float[] queryVec = queryEncoder.encode(query);
-        float[] docVec = docEncoder.encode(doc);
-        
-        // 计算相似度
-        return cosineSimilarity(queryVec, docVec);
-    }
-    
-    /**
-     * 单塔编码（Cross-Encoder）
-     * 特点：拼接编码，精度高，适合精排
-     */
-    public float crossEncoderScore(String query, String doc) {
-        // 拼接：[CLS] 查询 [SEP] 文档 [SEP]
-        String combined = "[CLS] " + query + " [SEP] " + doc + " [SEP]";
-        
-        // 一起编码
-        float[] features = crossEncoder.encode(combined);
-        
-        // 分类头输出相似度分数
-        return sigmoid(features[0]);
-    }
-    
-    /**
-     * ColBERT 多向量编码
-     * 特点：每个 token 一个向量，Late Interaction
-     */
-    public float colbertScore(String query, String doc) {
-        // 查询编码：每个 token 一个向量 [query_len, dim]
-        float[][] queryVecs = queryEncoder.encodeTokens(query);
-        
-        // 文档编码：每个 token 一个向量 [doc_len, dim]
-        float[][] docVecs = docEncoder.encodeTokens(doc);
-        
-        // Late Interaction：MaxSim
-        float score = 0;
-        for (float[] qVec : queryVecs) {
-            float maxSim = 0;
-            for (float[] dVec : docVecs) {
-                float sim = dotProduct(qVec, dVec);
-                maxSim = Math.max(maxSim, sim);
-            }
-            score += maxSim;
-        }
-        
-        return score / queryVecs.length;
-    }
-}
-
-/**
- * 两阶段检索：双塔召回 + 单塔精排
- */
-public class TwoStageRetrieval {
-    
-    private final DenseRetrievalSystem biEncoderSystem;   // 双塔召回
-    private final CrossEncoder crossEncoder;               // 单塔精排
-    
-    public List<RetrievalResult> retrieve(String query, int finalTopK) {
-        // Stage 1: 双塔召回（快速，大规模）
-        int recallTopK = finalTopK * 10;  // 召回更多候选
-        List<RetrievalResult> candidates = biEncoderSystem.search(query, recallTopK);
-        
-        // Stage 2: 单塔精排（精确，小规模）
-        List<ScoredResult> reranked = new ArrayList<>();
-        for (RetrievalResult candidate : candidates) {
-            float score = crossEncoder.score(query, candidate.getContent());
-            reranked.add(new ScoredResult(candidate, score));
-        }
-        
-        // 按精排分数排序
-        reranked.sort((a, b) -> Float.compare(b.score, a.score));
-        
-        // 返回 Top-K
-        return reranked.subList(0, finalTopK).stream()
-            .map(s -> s.result)
-            .collect(Collectors.toList());
-    }
-}
-```
-
----
-
-### 题目 3：ANN（近似最近邻）算法有哪些？HNSW 和 IVF 的原理是什么？
-
-#### 考察点
-- ANN 算法原理
-- HNSW 和 IVF 机制
-- 算法选择
-
-#### 详细解答
-
-**ANN 算法分类：**
-
-```mermaid
-flowchart TB
-    subgraph ANN["ANN 算法分类"]
-        A1["基于图的方法"] --> G["HNSW、NSG"]
-        A2["基于量化的方法"] --> Q["PQ、OPQ"]
-        A3["基于树的方法"] --> T["KD-Tree、Annoy"]
-        A4["基于哈希的方法"] --> H["LSH"]
-        A5["基于倒排的方法"] --> I["IVF、IVFPQ"]
-    end
-```
-
-**1. HNSW（Hierarchical Navigable Small World）：**
-
-```mermaid
-flowchart TB
-    subgraph HNSWStruct["HNSW 分层结构"]
-        L0["Layer 0<br/>所有节点<br/>密集连接"]
-        L1["Layer 1<br/>部分节点"]
-        L2["Layer 2<br/>更少节点"]
-        L3["Layer 3<br/>顶层，入口"]
-        
-        L3 --> L2 --> L1 --> L0
-    end
-```
-
-**原理：**
-
-```
-分层结构：
-- 顶层：稀疏图，快速定位大致区域
-- 底层：稠密图，精确搜索最近邻
-
-搜索过程：
-1. 从顶层随机入口开始
-2. 贪心搜索：找当前层最近的邻居
-3. 到达局部最优后，进入下一层
-4. 重复直到最底层
-5. 在最底层进行精确搜索
-
-插入过程：
-1. 计算新节点的层数（随机，指数衰减）
-2. 从顶层开始找到最近邻
-3. 在每一层建立连接（最多 M 个邻居）
-```
-
-**参数：**
-
-| 参数 | 说明 | 典型值 |
-|------|------|--------|
-| **M** | 每层最大连接数 | 16-64 |
-| **efConstruction** | 构建时的搜索深度 | 100-200 |
-| **efSearch** | 搜索时的搜索深度 | 64-256 |
-
-**2. IVF（Inverted File Index）：**
-
-```mermaid
-flowchart TB
-    subgraph IVFStruct["IVF 结构"]
-        C["聚类中心<br/>k个中心"] --> C1["Cluster 1"]
-        C --> C2["Cluster 2"]
-        C --> C3["Cluster 3"]
-        C --> CK["Cluster k"]
-        
-        C1 --> D1["文档向量"]
-        C2 --> D2["文档向量"]
-    end
-```
-
-**原理：**
-
-```
-构建过程：
-1. 对文档向量进行 K-Means 聚类，得到 k 个中心
-2. 每个文档分配到最近的中心
-3. 建立倒排索引：中心 → 文档列表
-
-搜索过程：
-1. 计算查询向量与所有中心的距离
-2. 选择最近的 nprobe 个中心
-3. 只在这些中心的文档中搜索
-4. 返回 Top-K
-
-优势：
-- 大幅减少搜索空间
-- 适合大规模数据（十亿级）
-```
-
-**参数：**
-
-| 参数 | 说明 | 典型值 |
-|------|------|--------|
-| **nlist** | 聚类中心数 | 100-4096 |
-| **nprobe** | 搜索时查询的中心数 | 10-100 |
-
-**3. PQ（Product Quantization）：**
-
-```
-原理：
-1. 将高维向量分成 m 个子向量
-2. 对每个子空间进行 K-Means 聚类（k=256）
-3. 每个子向量用最近的中心 ID 表示（1 byte）
-
-压缩效果：
-- 原始：768维 × 4字节 = 3072字节
-- PQ后：m个子空间 × 1字节 = m字节（如96字节）
-- 压缩比：32:1
-
-搜索：
-- 预计算查询与各中心的距离表
-- 通过查表快速计算近似距离
-```
-
-**算法对比：**
-
-| 算法 | 原理 | 优点 | 缺点 | 适用场景 |
-|------|------|------|------|---------|
-| **HNSW** | 分层图 | 精度高、构建快 | 内存占用大 | 百万-千万级 |
-| **IVF** | 倒排+聚类 | 内存小、可扩展 | 精度略低 | 千万-亿级 |
-| **IVFPQ** | IVF+PQ | 内存极小 | 精度损失 | 十亿级+ |
-| **PQ** | 量化压缩 | 压缩率高 | 精度损失 | 存储受限 |
-
-**Java 伪代码：**
-
-```java
-/**
- * ANN 索引实现
- */
-public class ANNIndex {
-    
-    private IndexType indexType;
-    private int dim;           // 向量维度
-    
-    // HNSW 参数
-    private int hnswM;
-    private int efConstruction;
-    private int efSearch;
-    
-    // IVF 参数
-    private int nlist;         // 聚类中心数
-    private int nprobe;        // 搜索时查询的中心数
-    
-    /**
-     * 构建 HNSW 索引
-     */
-    public void buildHNSW(List<float[]> vectors) {
-        // 初始化分层图
-        HNSWGraph graph = new HNSWGraph(hnswM);
-        
-        for (int i = 0; i < vectors.size(); i++) {
-            float[] vec = vectors.get(i);
-            
-            // 计算节点层数（指数衰减）
-            int level = calculateLevel();
-            
-            // 从顶层开始插入
-            for (int l = graph.maxLevel(); l >= 0; l--) {
-                if (l <= level) {
-                    // 在当前层找到最近邻
-                    List<Integer> neighbors = searchLevel(vec, l, efConstruction);
-                    
-                    // 建立双向连接（最多 M 个）
-                    graph.addNode(i, l, neighbors.subList(0, Math.min(hnswM, neighbors.size())));
-                }
-            }
-        }
-        
-        this.graph = graph;
-    }
-    
-    /**
-     * HNSW 搜索
-     */
-    public List<Integer> searchHNSW(float[] query, int topK) {
-        // 从顶层入口开始
-        int entryPoint = graph.getEntryPoint();
-        
-        // 贪心搜索到最底层
-        for (int level = graph.maxLevel(); level >= 0; level--) {
-            entryPoint = greedySearch(query, entryPoint, level);
-        }
-        
-        // 在最底层进行精确搜索
-        return beamSearch(query, entryPoint, topK, efSearch);
-    }
-    
-    /**
-     * 构建 IVF 索引
-     */
-    public void buildIVF(List<float[]> vectors) {
-        // 1. K-Means 聚类
-        KMeans kmeans = new KMeans(nlist);
-        float[][] centroids = kmeans.fit(vectors);
-        
-        // 2. 分配文档到最近的中心
-        Map<Integer, List<Integer>> invertedLists = new HashMap<>();
-        for (int i = 0; i < vectors.size(); i++) {
-            int nearestCentroid = findNearestCentroid(vectors.get(i), centroids);
-            invertedLists.computeIfAbsent(nearestCentroid, k -> new ArrayList<>()).add(i);
-        }
-        
-        this.centroids = centroids;
-        this.invertedLists = invertedLists;
-    }
-    
-    /**
-     * IVF 搜索
-     */
-    public List<Integer> searchIVF(float[] query, int topK) {
-        // 1. 计算与所有中心的距离
-        List<ScoredCentroid> scoredCentroids = new ArrayList<>();
-        for (int i = 0; i < centroids.length; i++) {
-            float dist = euclideanDistance(query, centroids[i]);
-            scoredCentroids.add(new ScoredCentroid(i, dist));
-        }
-        
-        // 2. 选择最近的 nprobe 个中心
-        scoredCentroids.sort(Comparator.comparingDouble(s -> s.distance));
-        List<Integer> selectedCentroids = scoredCentroids.subList(0, nprobe)
-            .stream()
-            .map(s -> s.id)
-            .collect(Collectors.toList());
-        
-        // 3. 在这些中心的倒排列表中搜索
-        List<ScoredVector> candidates = new ArrayList<>();
-        for (int centroidId : selectedCentroids) {
-            List<Integer> docList = invertedLists.get(centroidId);
-            for (int docId : docList) {
-                float dist = euclideanDistance(query, vectors.get(docId));
-                candidates.add(new ScoredVector(docId, dist));
-            }
-        }
-        
-        // 4. 排序返回 Top-K
-        candidates.sort(Comparator.comparingDouble(s -> s.distance));
-        return candidates.subList(0, Math.min(topK, candidates.size()))
-            .stream()
-            .map(s -> s.id)
-            .collect(Collectors.toList());
-    }
-    
-    /**
-     * 选择索引类型
-     */
-    public static ANNIndex create(int dim, int dataSize, IndexType type) {
-        ANNIndex index = new ANNIndex();
-        index.dim = dim;
-        index.indexType = type;
-        
-        switch (type) {
-            case HNSW:
-                index.hnswM = 16;
-                index.efConstruction = 200;
-                index.efSearch = 64;
-                break;
-            case IVF:
-                index.nlist = (int) Math.sqrt(dataSize);  // 经验值
-                index.nprobe = Math.max(1, index.nlist / 10);
-                break;
-            case IVFPQ:
-                // IVF + PQ 组合
-                index.nlist = (int) Math.sqrt(dataSize);
-                index.nprobe = index.nlist / 10;
-                // PQ 参数...
-                break;
-        }
-        
-        return index;
-    }
-}
-
-enum IndexType {
-    HNSW,      // 分层可导航小世界
-    IVF,       // 倒排文件
-    IVFPQ,     // 倒排+乘积量化
-    PQ,        // 乘积量化
-    FLAT       // 暴力搜索（基准）
-}
-```
-
----
-
-### 题目 4：稠密检索在实际应用中有哪些挑战？如何解决？
-
-#### 考察点
-- 实际挑战识别
-- 解决方案设计
-- 工程实践
-
-#### 详细解答
-
-**主要挑战：**
-
-```mermaid
-flowchart TB
-    subgraph Challenges["稠密检索挑战"]
-        C1["领域适配"] --> C1_S["通用模型在专业领域效果差"]
-        C2["零样本问题"] --> C2_S["训练时未见过的查询"]
-        C3["长文档处理"] --> C3_S["超出编码器长度限制"]
-        C4["索引更新"] --> C4_S["增量更新成本高"]
-        C5["可解释性"] --> C5_S["黑盒，难以调试"]
-    end
-```
-
-**1. 领域适配（Domain Adaptation）：**
-
-```
-问题：
-- 通用预训练模型（如 BERT）在特定领域（医疗、法律）效果差
-- 领域术语理解不准确
-
-解决方案：
-1. 领域预训练
-   - 在领域语料上继续预训练
-   - 学习领域词汇和语义
-
-2. 对比学习微调
-   - 使用领域内的正样本对（查询-相关文档）
-   - 使用 InfoNCE 等对比损失
-
-3. 领域特定编码器
-   - 从头训练领域编码器
-   - 如：Contriever、GTR
-```
-
-**2. 零样本检索（Zero-Shot Retrieval）：**
-
-```
-问题：
-- 训练时未见过的查询类型
-- 新领域、新任务
-
-解决方案：
-1. 提示工程（Prompt Engineering）
-   - "Represent this sentence for retrieval: {text}"
-   - 引导模型进入检索模式
-
-2. 指令微调（Instruction Tuning）
-   - 使用多样化指令训练
-   - 提升泛化能力
-
-3. 混合检索
-   - 稠密 + 稀疏组合
-   - 互相补充
-```
-
-**3. 长文档处理：**
-
-```
-问题：
-- 编码器通常有 512/1024 token 限制
-- 长文档需要截断或分段
-
-解决方案：
-1. 滑动窗口
-   - 文档分块，每块独立编码
-   - 聚合块级表示
-
-2. 层次编码
-   - 句子级编码 → 段落级聚合
-   - 类似 Transformer 的层次结构
-
-3. 长文本模型
-   - Longformer、BigBird
-   - 稀疏注意力机制
-```
-
-**4. 索引更新：**
-
-```
-问题：
-- 新文档加入需要重新索引
-- HNSW 等图索引不支持高效增量更新
-
-解决方案：
-1. 分段索引
-   - 按时间/类别分多个索引
-   - 只更新部分索引
-
-2. 定期重建
-   - 批量累积后重建索引
-   - 适合文档更新不频繁场景
-
-3. 近似更新
-   - 找到最近邻，局部更新连接
-   - 牺牲部分精度换取效率
-```
-
-**5. 可解释性：**
-
-```
-问题：
-- 向量相似度是黑盒
-- 不知道为什么召回这个结果
-
-解决方案：
-1. 注意力可视化
-   - 查看编码时的注意力权重
-   - 了解模型关注哪些词
-
-2. 向量分解
-   - 将向量分解为可解释维度
-   - 如：Sparse Retrieval + Dense
-
-3. 混合检索解释
-   - 稀疏检索提供词级别匹配证据
-   - 稠密检索提供语义相似度
-```
-
-**解决方案对比：**
-
-| 挑战 | 解决方案 | 效果 | 成本 |
-|------|---------|------|------|
-| **领域适配** | 领域预训练 + 对比学习 | 显著提升 | 高 |
-| **零样本** | 提示工程 + 指令微调 | 中等提升 | 中 |
-| **长文档** | 分块 + 层次编码 | 有效 | 中 |
-| **索引更新** | 分段索引 + 定期重建 | 有效 | 低 |
-| **可解释性** | 混合检索 + 注意力可视化 | 部分解决 | 低 |
-
-**Java 伪代码（完整系统）：**
-
-```java
-/**
- * 生产级稠密检索系统
- */
-public class ProductionDenseRetrieval {
-    
-    private final EmbeddingModel encoder;
-    private final VectorIndex vectorIndex;
-    private final SparseRetrieval sparseRetrieval;  // 混合检索
-    
-    // 领域适配组件
-    private final DomainAdapter domainAdapter;
-    private final QueryRewriter queryRewriter;
-    
-    /**
-     * 领域适配编码
-     */
-    public float[] domainAwareEncode(String text, String domain) {
-        // 1. 领域特定预处理
-        String processed = domainAdapter.preprocess(text, domain);
-        
-        // 2. 提示工程
-        String prompted = "Represent this " + domain + " document for retrieval: " + processed;
-        
-        // 3. 编码
-        return encoder.encode(prompted);
-    }
-    
-    /**
-     * 长文档处理
-     */
-    public List<float[]> encodeLongDocument(String longDoc, int maxChunkLength) {
-        List<float[]> chunkVectors = new ArrayList<>();
-        
-        // 1. 文档分块
-        List<String> chunks = chunkDocument(longDoc, maxChunkLength);
-        
-        // 2. 每块编码
-        for (String chunk : chunks) {
-            float[] vec = encoder.encode(chunk);
-            chunkVectors.add(vec);
-        }
-        
-        // 3. 聚合（平均池化或加权）
-        return aggregateChunks(chunkVectors);
-    }
-    
-    /**
-     * 混合检索（稠密 + 稀疏）
-     */
-    public List<RetrievalResult> hybridSearch(String query, int topK) {
-        // 1. 稠密检索
-        List<RetrievalResult> denseResults = denseSearch(query, topK * 2);
-        
-        // 2. 稀疏检索
-        List<RetrievalResult> sparseResults = sparseRetrieval.search(query, topK * 2);
-        
-        // 3. 结果融合（RRF 或加权）
-        return fuseResults(denseResults, sparseResults, topK);
-    }
-    
-    /**
-     * RRF（Reciprocal Rank Fusion）融合
-     */
-    private List<RetrievalResult> fuseResults(
-            List<RetrievalResult> denseResults,
-            List<RetrievalResult> sparseResults,
-            int topK) {
-        
-        Map<String, Double> fusedScores = new HashMap<>();
-        int k = 60;  // RRF 常数
-        
-        // 稠密检索分数
-        for (int i = 0; i < denseResults.size(); i++) {
-            String docId = denseResults.get(i).getDocId();
-            double score = 1.0 / (k + i + 1);
-            fusedScores.merge(docId, score, Double::sum);
-        }
-        
-        // 稀疏检索分数
+        // 稀疏检索结果打分
         for (int i = 0; i < sparseResults.size(); i++) {
             String docId = sparseResults.get(i).getDocId();
-            double score = 1.0 / (k + i + 1);
-            fusedScores.merge(docId, score, Double::sum);
+            double score = sparseWeight * (1.0 / (60 + i));  // RRF公式
+            scoreMap.merge(docId, score, Double::sum);
         }
         
-        // 排序返回
-        return fusedScores.entrySet().stream()
+        // 稠密检索结果打分
+        for (int i = 0; i < denseResults.size(); i++) {
+            String docId = denseResults.get(i).getDocId();
+            double score = denseWeight * (1.0 / (60 + i));
+            scoreMap.merge(docId, score, Double::sum);
+        }
+        
+        // 3. 按融合分数排序返回
+        return scoreMap.entrySet().stream()
             .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
             .limit(topK)
-            .map(e -> mergeResultInfo(e.getKey(), denseResults, sparseResults))
+            .map(e -> new RetrievalResult(e.getKey(), e.getValue()))
             .collect(Collectors.toList());
     }
+}
+```
+
+---
+
+### 题目 2（中级）：Embedding 模型的选择
+
+**问题**：在实际项目中，如何选择合适的 Embedding 模型？请列出关键考虑因素，并对比几款主流模型的特点。
+
+#### 考察点
+- 了解主流 Embedding 模型及其特点
+- 能够根据业务需求做出技术选型
+- 理解模型维度、上下文长度等关键参数的影响
+
+#### 详细解答
+
+**选型考虑因素：**
+
+| 因素 | 说明 | 影响 |
+|------|------|------|
+| **语言支持** | 是否支持中文/多语言 | 决定能否处理多语言查询 |
+| **向量维度** | 输出向量的维度（384/768/1024/1536） | 影响存储和计算成本 |
+| **上下文长度** | 最大输入 token 数（512/2048/8192） | 决定能处理多长的文档 |
+| **检索性能** | 在标准 benchmark 上的 Recall@K | 决定检索质量 |
+| **推理速度** | 编码一个文档的耗时 | 影响索引和查询延迟 |
+| **模型大小** | 参数量（MB/GB） | 影响部署成本 |
+
+**主流模型对比：**
+
+| 模型 | 维度 | 上下文 | 特点 | 适用场景 |
+|------|------|--------|------|---------|
+| **text-embedding-3-small** | 1536 | 8192 | OpenAI，性价比高 | 通用场景，英语为主 |
+| **text-embedding-3-large** | 3072 | 8192 | OpenAI，性能最强 | 高质量检索需求 |
+| **bge-large-zh** | 1024 | 512 | 中文优化，开源 | 中文场景首选 |
+| **bge-m3** | 1024 | 8192 | 多语言，长文本 | 多语言长文档 |
+| **gte-large** | 1024 | 512 | 阿里开源，中文友好 | 中文企业场景 |
+| **e5-large-v2** | 1024 | 512 | 微软，英文强 | 英文技术文档 |
+| **m3e-base** | 768 | 512 | 中文社区流行 | 中文通用场景 |
+
+> 💡 **提示**：中文场景优先选择 bge-large-zh 或 gte-large，它们在 C-MTEB 中文评测榜上表现优异。
+
+#### Java 伪代码示例
+
+```java
+/**
+ * Embedding 模型管理器
+ */
+public class EmbeddingModelManager {
+    
+    private final Map<String, EmbeddingModel> models = new HashMap<>();
+    
+    public EmbeddingModelManager() {
+        // 注册不同场景的模型
+        models.put("zh-general", new BgeLargeZhModel());      // 中文通用
+        models.put("en-technical", new E5LargeV2Model());     // 英文技术
+        models.put("multilingual", new BgeM3Model());         // 多语言
+        models.put("long-doc", new BgeM3Model());             // 长文档
+    }
     
     /**
-     * 增量索引更新
+     * 根据场景选择最优模型
      */
-    public void incrementalIndex(List<Document> newDocuments) {
-        // 方案1：添加到当前索引（如果索引支持）
-        if (vectorIndex.supportsIncrementalUpdate()) {
-            for (Document doc : newDocuments) {
-                float[] vec = encoder.encode(doc.getContent());
-                vectorIndex.add(doc.getId(), vec);
-            }
-        } else {
-            // 方案2：写入增量索引，定期合并
-            VectorIndex deltaIndex = createDeltaIndex(newDocuments);
-            scheduleMerge(vectorIndex, deltaIndex);
+    public EmbeddingModel selectModel(RetrievalScenario scenario) {
+        switch (scenario) {
+            case CHINESE_GENERAL:
+                return models.get("zh-general");
+            case ENGLISH_TECHNICAL:
+                return models.get("en-technical");
+            case MULTILINGUAL:
+                return models.get("multilingual");
+            case LONG_DOCUMENT:
+                return models.get("long-doc");
+            default:
+                return models.get("zh-general");
         }
     }
     
     /**
-     * 可解释性：生成解释
+     * 批量编码文档（生产环境建议批量处理）
      */
-    public Explanation explain(String query, RetrievalResult result) {
-        Explanation explanation = new Explanation();
+    public List<float[]> encodeDocuments(List<String> documents, String modelKey) {
+        EmbeddingModel model = models.get(modelKey);
         
-        // 1. 稠密相似度解释
-        explanation.setDenseScore(result.getScore());
+        // 分批处理，避免内存溢出
+        List<float[]> embeddings = new ArrayList<>();
+        int batchSize = 32;
         
-        // 2. 稀疏匹配解释
-        List<String> matchedTerms = sparseRetrieval.getMatchedTerms(query, result.getDocId());
-        explanation.setMatchedTerms(matchedTerms);
-        
-        // 3. 注意力可视化（如果模型支持）
-        if (encoder.supportsAttention()) {
-            Map<String, Double> attentionWeights = encoder.getAttentionWeights(query, result.getContent());
-            explanation.setAttentionWeights(attentionWeights);
+        for (int i = 0; i < documents.size(); i += batchSize) {
+            List<String> batch = documents.subList(i, Math.min(i + batchSize, documents.size()));
+            embeddings.addAll(model.encode(batch));
         }
         
-        return explanation;
+        return embeddings;
     }
 }
 
 /**
- * 检索解释
+ * Embedding 模型接口
  */
-@Data
-class Explanation {
-    private double denseScore;                    // 稠密相似度
-    private double sparseScore;                   // 稀疏分数
-    private List<String> matchedTerms;            // 匹配的稀疏词
-    private Map<String, Double> attentionWeights; // 注意力权重
-    private String explanationText;               // 自然语言解释
+public interface EmbeddingModel {
+    int getDimension();
+    int getMaxContextLength();
+    List<float[]> encode(List<String> texts);
+}
+```
+
+---
+
+### 题目 3（中级）：向量数据库的选择与优化
+
+**问题**：请对比几款主流向量数据库（Milvus、Pinecone、pgvector、Redis Vector）的特点，并说明在生产环境中如何优化向量检索性能。
+
+#### 考察点
+- 了解主流向量数据库的架构差异
+- 理解向量索引算法（HNSW、IVF）的原理和适用场景
+- 掌握生产环境的性能优化策略
+
+#### 详细解答
+
+**主流向量数据库对比：**
+
+| 数据库 | 架构 | 索引算法 | 特点 | 适用场景 |
+|--------|------|---------|------|---------|
+| **Milvus** | 分布式 | HNSW、IVF_FLAT、IVF_SQ8 | 功能最全，云原生 | 大规模企业级应用 |
+| **Pinecone** | 全托管 | 内部优化 | 无需运维，按量付费 | 快速上线，无运维资源 |
+| **pgvector** | PostgreSQL 扩展 | HNSW、IVF | 与 PG 生态集成 | 已有 PG 基础设施 |
+| **Redis Vector** | 内存数据库 | HNSW、FLAT | 低延迟，内存计算 | 高并发，小数据量 |
+| **Qdrant** | 开源/云 | HNSW | Rust 实现，高性能 | 开源偏好，高性能需求 |
+| **Weaviate** | 开源/云 | HNSW | 模块化，GraphQL 接口 | 需要灵活模块化 |
+
+**索引算法选择：**
+
+```mermaid
+flowchart TD
+    A[选择索引算法] --> B{数据规模?}
+    B -->|&lt; 100万| C[HNSW]
+    B -->|&gt; 100万| D{内存限制?}
+    D -->|充足| C
+    D -->|紧张| E[IVF_SQ8]
+    
+    C --> F[高召回率<br/>较高内存]
+    E --> G[压缩存储<br/>略低召回率]
+```
+
+| 算法 | 原理 | 优点 | 缺点 | 适用 |
+|------|------|------|------|------|
+| **HNSW** | 分层导航小世界图 | 高召回、快查询 | 内存占用大 | 默认首选 |
+| **IVF_FLAT** | 倒排文件 + 精确计算 | 内存友好 | 查询较慢 | 大数据集 |
+| **IVF_SQ8** | IVF + 标量量化 | 极低内存 | 召回略低 | 超大规模 |
+
+**生产环境优化策略：**
+
+| 优化维度 | 策略 | 效果 |
+|---------|------|------|
+| **索引参数** | HNSW: M=16, efConstruction=200 | 平衡构建时间和查询性能 |
+| **查询参数** | ef=128-256（越大召回率越高） | 控制查询时的搜索范围 |
+| **数据分区** | 按类别/时间分 Collection | 减少单次搜索数据量 |
+| **混合检索** | 向量 + 倒排索引混合 | 提高精确匹配能力 |
+| **缓存** | 热点查询结果缓存 | 降低重复查询延迟 |
+| **批量查询** | 合并多个查询请求 | 提高吞吐量 |
+
+#### Java 伪代码示例
+
+```java
+/**
+ * 向量数据库客户端 - Milvus 示例
+ */
+public class VectorDatabaseClient {
+    
+    private final MilvusClient client;
+    private final String collectionName;
+    
+    // HNSW 索引参数
+    private static final int HNSW_M = 16;                    // 每个节点的最大连接数
+    private static final int HNSW_EF_CONSTRUCTION = 200;     // 构建时的搜索范围
+    private static final int HNSW_EF = 128;                  // 查询时的搜索范围
+    
+    /**
+     * 创建 Collection 和索引
+     */
+    public void createCollection(int vectorDimension) {
+        // 1. 定义字段
+        FieldType idField = FieldType.newBuilder()
+            .withName("id")
+            .withDataType(DataType.Int64)
+            .withPrimaryKey(true)
+            .withAutoID(true)
+            .build();
+            
+        FieldType vectorField = FieldType.newBuilder()
+            .withName("embedding")
+            .withDataType(DataType.FloatVector)
+            .withDimension(vectorDimension)
+            .build();
+            
+        FieldType contentField = FieldType.newBuilder()
+            .withName("content")
+            .withDataType(DataType.VarChar)
+            .withMaxLength(65535)
+            .build();
+        
+        // 2. 创建 Collection
+        CreateCollectionParam createParam = CreateCollectionParam.newBuilder()
+            .withCollectionName(collectionName)
+            .withFieldTypes(Arrays.asList(idField, vectorField, contentField))
+            .withShardsNum(2)  // 分片数
+            .build();
+        client.createCollection(createParam);
+        
+        // 3. 创建 HNSW 索引
+        CreateIndexParam indexParam = CreateIndexParam.newBuilder()
+            .withCollectionName(collectionName)
+            .withFieldName("embedding")
+            .withIndexType(IndexType.HNSW)
+            .withMetricType(MetricType.COSINE)
+            .withExtraParam(String.format("{\"M\":%d,\"efConstruction\":%d}", 
+                HNSW_M, HNSW_EF_CONSTRUCTION))
+            .build();
+        client.createIndex(indexParam);
+    }
+    
+    /**
+     * 批量插入向量
+     */
+    public void insertVectors(List<String> contents, List<float[]> embeddings) {
+        List<InsertParam.Field> fields = new ArrayList<>();
+        
+        // 内容字段
+        fields.add(new InsertParam.Field("content", contents));
+        
+        // 向量字段
+        List<List<Float>> vectorData = embeddings.stream()
+            .map(e -> {
+                List<Float> list = new ArrayList<>(e.length);
+                for (float v : e) list.add(v);
+                return list;
+            })
+            .collect(Collectors.toList());
+        fields.add(new InsertParam.Field("embedding", vectorData));
+        
+        InsertParam insertParam = InsertParam.newBuilder()
+            .withCollectionName(collectionName)
+            .withFields(fields)
+            .build();
+            
+        client.insert(insertParam);
+    }
+    
+    /**
+     * 向量相似度搜索
+     */
+    public List<SearchResult> search(float[] queryVector, int topK) {
+        List<String> searchOutputFields = Arrays.asList("id", "content");
+        
+        SearchParam searchParam = SearchParam.newBuilder()
+            .withCollectionName(collectionName)
+            .withMetricType(MetricType.COSINE)
+            .withVectors(Collections.singletonList(toList(queryVector)))
+            .withVectorFieldName("embedding")
+            .withTopK(topK)
+            .withParams(String.format("{\"ef\":%d}", HNSW_EF))
+            .withOutFields(searchOutputFields)
+            .build();
+            
+        R<SearchResults> results = client.search(searchParam);
+        return parseResults(results);
+    }
+    
+    /**
+     * 带过滤条件的搜索（混合检索）
+     */
+    public List<SearchResult> searchWithFilter(
+            float[] queryVector, 
+            String category,
+            int topK) {
+        
+        // 构建过滤表达式
+        String expr = String.format("category == '%s'", category);
+        
+        SearchParam searchParam = SearchParam.newBuilder()
+            .withCollectionName(collectionName)
+            .withMetricType(MetricType.COSINE)
+            .withVectors(Collections.singletonList(toList(queryVector)))
+            .withVectorFieldName("embedding")
+            .withTopK(topK)
+            .withExpr(expr)  // 添加过滤条件
+            .withParams(String.format("{\"ef\":%d}", HNSW_EF))
+            .build();
+            
+        return parseResults(client.search(searchParam));
+    }
+    
+    private List<Float> toList(float[] arr) {
+        List<Float> list = new ArrayList<>(arr.length);
+        for (float v : arr) list.add(v);
+        return list;
+    }
+}
+```
+
+---
+
+### 题目 4（高级）：稠密检索的局限性与改进方案
+
+**问题**：稠密检索在实际应用中存在哪些局限性？请列举至少 3 个问题，并给出相应的改进方案。
+
+#### 考察点
+- 对稠密检索技术边界的深入理解
+- 能够识别实际问题并提出解决方案
+- 了解 RAG 系统的最新研究进展
+
+#### 详细解答
+
+**局限性及改进方案：**
+
+| 局限性 | 原因 | 影响 | 改进方案 |
+|--------|------|------|---------|
+| **领域适配问题** | 通用模型对专业领域理解不足 | 专业术语检索效果差 | 领域微调、动态 Embedding |
+| **长尾查询问题** | 训练数据分布不均 | 罕见查询召回率低 | 查询扩展、混合检索 |
+| **多义词问题** | 上下文信息丢失 | "苹果"（水果/公司）混淆 | 上下文感知编码、重排序 |
+| **粒度不匹配** | 查询短，文档长 | 长文档语义稀释 | 段落切分、ColBERT 细粒度 |
+| **冷启动问题** | 新文档无索引 | 无法检索最新内容 | 增量索引、实时更新 |
+
+**详细改进方案：**
+
+1. **领域适配（Domain Adaptation）**
+
+```mermaid
+flowchart LR
+    A[通用Embedding模型] --> B{领域数据}
+    B -->|无标注| C[无监督对比学习]
+    B -->|有标注| D[监督微调]
+    C --> E[领域适配模型]
+    D --> E
+```
+
+- **无监督方法**：使用领域文档进行对比学习（Contriever 风格）
+- **有监督方法**：构建领域内的 query-doc 对进行微调
+- **提示工程**：在输入前添加领域标识，如"[医疗] 糖尿病治疗方法"
+
+2. **查询扩展（Query Expansion）**
+
+```java
+/**
+ * 查询扩展器 - 使用 LLM 扩展查询
+ */
+public class QueryExpander {
+    
+    private final LLMClient llmClient;
+    
+    /**
+     * 生成查询扩展
+     * 
+     * @param originalQuery 原始查询
+     * @return 扩展后的查询列表
+     */
+    public List<String> expand(String originalQuery) {
+        String prompt = String.format(
+            "请为以下查询生成 3 个语义相关的扩展查询，帮助检索更多信息：\n" +
+            "原始查询：%s\n" +
+            "扩展查询（用换行分隔）：",
+            originalQuery
+        );
+        
+        String response = llmClient.complete(prompt);
+        
+        List<String> expandedQueries = new ArrayList<>();
+        expandedQueries.add(originalQuery);  // 保留原始查询
+        expandedQueries.addAll(Arrays.asList(response.split("\\n")));
+        
+        return expandedQueries.stream()
+            .filter(q -> !q.trim().isEmpty())
+            .distinct()
+            .collect(Collectors.toList());
+    }
+    
+    /**
+     * 多查询检索并融合结果
+     */
+    public List<RetrievalResult> multiQueryRetrieve(
+            String query, 
+            DenseRetriever retriever,
+            int topK) {
+        
+        List<String> expandedQueries = expand(query);
+        Map<String, Double> scoreMap = new HashMap<>();
+        
+        // 对每个扩展查询进行检索
+        for (String q : expandedQueries) {
+            List<RetrievalResult> results = retriever.search(q, topK);
+            for (int i = 0; i < results.size(); i++) {
+                String docId = results.get(i).getDocId();
+                double score = results.get(i).getScore() * (1.0 / (1 + i));
+                scoreMap.merge(docId, score, Double::sum);
+            }
+        }
+        
+        // 归一化并排序
+        return scoreMap.entrySet().stream()
+            .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
+            .limit(topK)
+            .map(e -> new RetrievalResult(e.getKey(), e.getValue()))
+            .collect(Collectors.toList());
+    }
+}
+```
+
+3. **重排序（Re-ranking）**
+
+```java
+/**
+ * 两阶段检索：召回 + 重排序
+ */
+public class TwoStageRetriever {
+    
+    private final DenseRetriever firstStageRetriever;    // 第一阶段：快速召回
+    private final CrossEncoderReranker reranker;          // 第二阶段：精确重排
+    
+    private static final int FIRST_STAGE_K = 100;         // 第一阶段召回数量
+    private static final int FINAL_K = 10;                // 最终返回数量
+    
+    /**
+     * 两阶段检索
+     * 
+     * 第一阶段：使用双编码器快速召回 Top-100
+     * 第二阶段：使用交叉编码器对 Top-100 进行精确重排
+     */
+    public List<RetrievalResult> retrieve(String query, int topK) {
+        // 1. 第一阶段：快速召回
+        List<RetrievalResult> candidates = firstStageRetriever.search(query, FIRST_STAGE_K);
+        
+        // 2. 第二阶段：精确重排
+        List<ScoredDocument> reranked = reranker.rerank(query, candidates);
+        
+        // 3. 返回 Top-K
+        return reranked.stream()
+            .limit(topK)
+            .map(r -> new RetrievalResult(r.getDocId(), r.getScore()))
+            .collect(Collectors.toList());
+    }
+}
+
+/**
+ * 交叉编码器重排序器
+ * 
+ * 原理：将 query 和 doc 拼接后输入模型，获得更精确的相关性分数
+ * 代价：计算成本高，只能用于少量文档重排
+ */
+public class CrossEncoderReranker {
+    
+    private final CrossEncoderModel model;
+    private final int batchSize = 8;  // 批处理大小
+    
+    public List<ScoredDocument> rerank(String query, List<RetrievalResult> candidates) {
+        List<ScoredDocument> scoredDocs = new ArrayList<>();
+        
+        // 分批处理，避免内存溢出
+        for (int i = 0; i < candidates.size(); i += batchSize) {
+            List<RetrievalResult> batch = candidates.subList(
+                i, Math.min(i + batchSize, candidates.size())
+            );
+            
+            // 构建输入对 (query, doc)
+            List<Pair<String, String>> pairs = batch.stream()
+                .map(c -> Pair.of(query, c.getContent()))
+                .collect(Collectors.toList());
+            
+            // 批量预测相关性分数
+            float[] scores = model.predict(pairs);
+            
+            // 收集结果
+            for (int j = 0; j < batch.size(); j++) {
+                scoredDocs.add(new ScoredDocument(
+                    batch.get(j).getDocId(),
+                    batch.get(j).getContent(),
+                    scores[j]
+                ));
+            }
+        }
+        
+        // 按分数降序排序
+        scoredDocs.sort(Comparator.comparing(ScoredDocument::getScore).reversed());
+        return scoredDocs;
+    }
 }
 ```
 
@@ -1042,57 +642,34 @@ class Explanation {
 
 ## 三、延伸追问
 
-### 追问 1：稠密检索和稀疏检索如何结合使用？
+### 追问 1：稠密检索和稀疏检索如何有效融合？
 
-**混合策略：**
+**简要答案要点：**
 
-```mermaid
-flowchart TB
-    subgraph Hybrid["混合检索"]
-        Q["查询"] --> D["稠密检索"]
-        Q --> S["稀疏检索"]
-        
-        D --> F["结果融合"]
-        S --> F
-        
-        F --> R["最终排序"]
-    end
-```
+1. **线性加权融合**：`final_score = α * dense_score + β * sparse_score`
+2. **RRF（Reciprocal Rank Fusion）**：`score = Σ 1/(k + rank)`，对排名进行融合而非分数
+3. **级联融合**：先用稀疏检索过滤，再用稠密检索精排
+4. **学习融合**：训练模型学习最优融合权重
 
-**融合方法：**
+### 追问 2：如何评估稠密检索的效果？
 
-| 方法 | 原理 | 公式 |
-|------|------|------|
-| **线性加权** | 分数加权求和 | score = α·dense + (1-α)·sparse |
-| **RRF** | 倒数排名融合 | score = Σ 1/(k + rank_i) |
-| **级联** | 先用一种召回，再用另一种精排 | 稀疏召回 → 稠密精排 |
-
-### 追问 2：稠密检索的向量维度如何选择？维度越高越好吗？
-
-**维度选择：**
-
-| 维度 | 优点 | 缺点 | 适用场景 |
-|------|------|------|---------|
-| **256** | 存储小、检索快 | 表达能力有限 | 资源受限 |
-| **384** | 平衡 | 通用选择 | 通用场景 |
-| **768** | 表达能力强 | 存储大 | 高精度需求 |
-| **1024+** | 最强表达 | 成本最高 | 专业领域 |
-
-**不是越高越好：**
-- 高维度增加存储和计算成本
-- 存在维度灾难
-- 需要更多数据训练
-
-### 追问 3：如何评估稠密检索的效果？有哪些指标？
-
-**评估指标：**
+**简要答案要点：**
 
 | 指标 | 说明 | 计算方式 |
 |------|------|---------|
-| **Recall@K** | Top-K 召回率 | 相关文档在 Top-K 中的比例 |
+| **Recall@K** | Top-K 中相关文档的比例 | 最核心指标 |
 | **MRR** | 平均倒数排名 | 第一个相关文档排名的倒数平均 |
-| **NDCG** | 归一化折损累积增益 | 考虑位置加权的排序质量 |
-| **Latency** | 检索延迟 | P99 响应时间 |
+| **NDCG** | 归一化折损累积增益 | 考虑文档相关度分级 |
+| **Latency** | 查询延迟 | P50、P99 分位值 |
+
+### 追问 3：Embedding 向量是否需要归一化？
+
+**简要答案要点：**
+
+- **使用余弦相似度时**：必须归一化，因为 `cos(A,B) = A·B / (|A||B|)`，归一化后简化为点积
+- **使用点积时**：可以归一化，但不必须
+- **使用欧氏距离时**：通常不归一化
+- **生产建议**：归一化后存储，简化计算且数值稳定性更好
 
 ---
 
@@ -1100,25 +677,27 @@ flowchart TB
 
 ### 面试回答模板
 
-> 稠密检索是将文本编码为稠密向量进行语义相似度检索的方法，与稀疏检索（BM25）相比，优势在于语义理解和同义词处理，缺点是黑盒、需要训练、资源消耗高。
+> 稠密检索是 RAG 系统的核心技术，通过将文本编码为语义向量实现语义匹配。与 BM25 等稀疏检索相比，它能解决词汇鸿沟问题，但存在计算成本高、可解释性差的缺点。
 >
-> **核心组件**：编码器（双塔/单塔/多向量）、向量索引（HNSW/IVF/PQ）、相似度度量（余弦/点积）。
+> 在实际应用中，我通常会采用**混合检索**策略：先用稠密检索召回语义相关文档，再用 BM25 补充关键词匹配结果，最后用交叉编码器重排序。模型选型上，中文场景推荐 bge-large-zh，英文场景推荐 e5-large-v2。
 >
-> **ANN 算法**：HNSW 使用分层图结构，精度高；IVF 使用倒排+聚类，适合大规模；IVFPQ 结合量化压缩，适合十亿级。
->
-> **实际挑战**：领域适配（需微调）、零样本（需提示工程）、长文档（需分块）、索引更新（需分段）、可解释性（需混合）。
+> 生产环境优化要注意三点：1) 选择合适的向量索引算法（HNSW 适合大多数场景）；2) 合理设置索引参数（M、efConstruction、ef）；3) 实施两阶段检索（召回+重排）平衡效果和效率。
 
 ### 一句话记忆
 
 | 概念 | 一句话 |
 |------|--------|
-| **稠密检索** | 文本编码为向量，语义相似度检索 |
-| **双塔架构** | 查询文档分别编码，效率高，适合召回 |
-| **单塔架构** | 查询文档拼接编码，精度高，适合精排 |
-| **HNSW** | 分层可导航小世界图，精度高，内存大 |
-| **IVF** | 倒排文件+聚类，适合大规模 |
-| **混合检索** | 稠密+稀疏结合，取长补短 |
+| **稠密检索** | 将文本变成向量，找语义相近而非字面匹配的文档 |
+| **双编码器** | 查询和文档分别编码，速度快但交互少 |
+| **交叉编码器** | 查询和文档一起编码，精度高但速度慢 |
+| **HNSW** | 图索引算法，高召回率但内存占用大 |
+| **混合检索** | 稠密+稀疏+重排，效果最好的组合拳 |
 
 ---
 
-> 💡 **提示**：稠密检索是 RAG 系统的核心组件，理解其原理、ANN 算法和与稀疏检索的对比是面试重点。
+## 参考资料
+
+1. [Dense Passage Retrieval for Open-Domain QA](https://arxiv.org/abs/2004.04906) - DPR 论文
+2. [Unsupervised Dense Information Retrieval](https://arxiv.org/abs/2112.07708) - Contriever
+3. [BGE: BAAI General Embedding](https://github.com/FlagOpen/FlagEmbedding) - BGE 模型
+4. [Milvus Documentation](https://milvus.io/docs) - 向量数据库文档
