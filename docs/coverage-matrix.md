@@ -171,7 +171,7 @@
 8. [x] ~~fundamentals/tokenizer.md - Tokenizer 原理~~ ✅ 2026-04-15
 
 #### P0 - 紧急（新增缺口）
-9. [ ] agent/retry-fallback.md - Retry & Fallback 机制
+9. [x] ~~agent/retry-fallback.md - Retry & Fallback 机制~~ ✅ 2026-04-18
 10. [ ] retrieval/embedding-models.md - Embedding 模型选型
 11. [ ] retrieval/vector-database-comparison.md - 向量数据库对比
 
