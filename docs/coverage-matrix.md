@@ -54,7 +54,7 @@
 | Context Optimization | context-optimization.md | ✅ | 2 | 完整 |
 | RAG Evaluation | rag-evaluation.md | ✅ | 3 | 完整 |
 | **缺口** | | | | |
-| Embedding 模型选型 | - | ❌ | 0 | **P0 - 待补充** |
+| Embedding 模型选型 | embedding-models.md | ✅ | 4 | **P0 - 已完成** ✅ 2026-04-25 |
 | 向量数据库对比 | - | ❌ | 0 | **P0 - 待补充** |
 | 多路召回 | - | ❌ | 0 | 待补充 |
 
@@ -172,7 +172,7 @@
 
 #### P0 - 紧急（新增缺口）
 9. [x] ~~agent/retry-fallback.md - Retry & Fallback 机制~~ ✅ 2026-04-18
-10. [ ] retrieval/embedding-models.md - Embedding 模型选型
+10. [x] ~~retrieval/embedding-models.md - Embedding 模型选型~~ ✅ 2026-04-25
 11. [ ] retrieval/vector-database-comparison.md - 向量数据库对比
 
 #### P1 - 重要
