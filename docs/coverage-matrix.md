@@ -55,7 +55,7 @@
 | RAG Evaluation | rag-evaluation.md | ✅ | 3 | 完整 |
 | **缺口** | | | | |
 | Embedding 模型选型 | embedding-models.md | ✅ | 4 | **P0 - 已完成** ✅ 2026-04-25 |
-| 向量数据库对比 | - | ❌ | 0 | **P0 - 待补充** |
+| 向量数据库对比 | vector-database-comparison.md | ✅ | 3 | **P0 - 已完成** ✅ 2026-04-26 |
 | 多路召回 | - | ❌ | 0 | 待补充 |
 
 ### 3. agent/ - Agent 核心组件 ✅
