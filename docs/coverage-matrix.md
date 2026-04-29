@@ -12,7 +12,7 @@
 | **paradigms** | ✅ | 80% | ~25 | P0 |
 | **retrieval** | ✅ | 90% | ~23 | P0 |
 | **agent** | ✅ | 70% | ~15 | P0 |
-| **frameworks** | ⚠️ | 30% | ~3 | P1 |
+| **frameworks** | ⚠️ | 50% | ~6 | P1 |
 | **java-examples** | ⚠️ | 40% | ~4 | P2 |
 | **fundamentals** | ⚠️ | 57% | 13 | **P0** |
 | **evaluation** | ⚠️ | 40% | 16 | **P0** |
@@ -77,7 +77,7 @@
 |--------|------|------|--------|------|
 | 框架对比概述 | README.md | ⚠️ | 1 | 骨架 |
 | **缺口** | | | | |
-| LangChain 深度解析 | - | ❌ | 0 | **高优先级** |
+| LangChain 深度解析 | langchain-deep-dive.md | ✅ | 3 | **已完成** ✅ 2026-04-29 |
 | LlamaIndex 深度解析 | - | ❌ | 0 | **高优先级** |
 | LangChain vs LlamaIndex 对比 | langchain-vs-llamaindex.md | ✅ | 3 | **已完成** |
 | AutoGPT/AutoGen 分析 | - | ❌ | 0 | 待补充 |
